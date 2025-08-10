@@ -35,3 +35,4 @@ logs/
 *.backup
 *~
 backup/
+Sources/
