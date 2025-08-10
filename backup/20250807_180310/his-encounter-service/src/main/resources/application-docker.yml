@@ -1,0 +1,54 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: encounter-service
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/his_encounter}
+    username: ${SPRING_DATASOURCE_USERNAME:his_user}
+    password: ${SPRING_DATASOURCE_PASSWORD:dev_password}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+    show-sql: false
+  flyway:
+    enabled: false
+
+services:
+  patient:
+    url: ${SERVICES_PATIENT_URL:http://patient-service:8081}
+
+feign:
+  client:
+    config:
+      patient-service:
+        connectTimeout: 5000
+        readTimeout: 10000
+        loggerLevel: basic
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    de.his.encounter: INFO
+    org.springframework.cloud.openfeign: INFO
+  file:
+    name: logs/encounter-service.log
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html

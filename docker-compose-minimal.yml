@@ -1,0 +1,261 @@
+version: "3.8"
+
+services:
+  # PostgreSQL Database - Core Infrastructure
+  postgres:
+    image: postgres:15-alpine
+    container_name: his-postgres-minimal
+    environment:
+      # ✅ Konsistent mit application-docker-minimal.yml
+      POSTGRES_DB: his_db
+      POSTGRES_USER: his_user
+      POSTGRES_PASSWORD: dev_password
+      # PostgreSQL Optimierungen
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    volumes:
+      - postgres_data_minimal:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    networks:
+      - his-network-minimal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U his_user -d his_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  # Redis - Caching & Rate Limiting
+  redis:
+    image: redis:7-alpine
+    container_name: his-redis-minimal
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data_minimal:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - his-network-minimal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # Patient Service - Port 8081
+  patient-service:
+    build:
+      context: ./his-patient-service
+      dockerfile: Dockerfile
+    container_name: his-patient-service-minimal
+    environment:
+      # Database Configuration
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/his_db
+      SPRING_DATASOURCE_USERNAME: his_user
+      SPRING_DATASOURCE_PASSWORD: dev_password
+      # JPA Configuration
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_SHOW_SQL: true
+      SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL: true
+      SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA: his_patient
+      # Profile Configuration
+      SPRING_PROFILES_ACTIVE: docker-minimal
+      # Logging Configuration
+      LOGGING_LEVEL_DE_HIS_PATIENT: DEBUG
+      LOGGING_LEVEL_ORG_HIBERNATE_SQL: DEBUG
+      LOGGING_LEVEL_ROOT: INFO
+      # Application Configuration
+      SERVER_PORT: 8081
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,metrics
+      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
+      # Security Configuration
+      SPRING_SECURITY_USER_NAME: admin
+      SPRING_SECURITY_USER_PASSWORD: dev-password
+      SPRING_SECURITY_USER_ROLES: ADMIN
+    ports:
+      - "8081:8081"
+    networks:
+      - his-network-minimal
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:8081/actuator/health",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    volumes:
+      - ./logs/patient:/app/logs
+
+  # Encounter Service - Port 8082 ✅ KORREKT EINGERÜCKT
+  encounter-service:
+    build:
+      context: ./his-encounter-service
+      dockerfile: Dockerfile
+    container_name: his-encounter-service-minimal
+    environment:
+      # Database Configuration - KORRIGIERT
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/his_db
+      SPRING_DATASOURCE_USERNAME: his_user
+      SPRING_DATASOURCE_PASSWORD: dev_password
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
+      # JPA Configuration - KORRIGIERT
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_SHOW_SQL: true
+      SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.PostgreSQLDialect
+      SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA: his_encounter
+      SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.PostgreSQLDialect
+      # Explizit H2 deaktivieren
+      SPRING_H2_CONSOLE_ENABLED: false
+      # Security Configuration - NEU
+      SPRING_SECURITY_USER_NAME: admin
+      SPRING_SECURITY_USER_PASSWORD: dev-password
+      SPRING_SECURITY_USER_ROLES: ADMIN
+      # Profile Configuration
+      SPRING_PROFILES_ACTIVE: docker-minimal
+      # Feign Client Configuration
+      SERVICES_PATIENT_URL: http://patient-service:8081
+      FEIGN_CLIENT_CONFIG_DEFAULT_CONNECT_TIMEOUT: 5000
+      FEIGN_CLIENT_CONFIG_DEFAULT_READ_TIMEOUT: 10000
+      # Logging Configuration
+      LOGGING_LEVEL_DE_HIS_ENCOUNTER: DEBUG
+      LOGGING_LEVEL_FEIGN: DEBUG
+      LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_CLOUD_OPENFEIGN: DEBUG
+      LOGGING_LEVEL_ORG_HIBERNATE_SQL: DEBUG
+      LOGGING_LEVEL_ROOT: INFO
+      # Application Configuration
+      SERVER_PORT: 8082
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,metrics
+      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
+    ports:
+      - "8082:8082"
+    networks:
+      - his-network-minimal
+    depends_on:
+      postgres:
+        condition: service_healthy
+      patient-service:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:8082/actuator/health",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    volumes:
+      - ./logs/encounter:/app/logs
+
+  # API Gateway - Port 8080
+  api-gateway:
+    build:
+      context: ./his-api-gateway
+      dockerfile: Dockerfile
+    container_name: his-api-gateway-minimal
+    environment:
+      # Patient Service Route
+      SPRING_CLOUD_GATEWAY_ROUTES_0_ID: patient-service
+      SPRING_CLOUD_GATEWAY_ROUTES_0_URI: http://patient-service:8081
+      SPRING_CLOUD_GATEWAY_ROUTES_0_PREDICATES_0: Path=/api/v1/patients/**
+      # Encounter Service Route
+      SPRING_CLOUD_GATEWAY_ROUTES_1_ID: encounter-service
+      SPRING_CLOUD_GATEWAY_ROUTES_1_URI: http://encounter-service:8082
+      SPRING_CLOUD_GATEWAY_ROUTES_1_PREDICATES_0: Path=/api/v1/encounters/**
+      # Patient Health Route
+      SPRING_CLOUD_GATEWAY_ROUTES_2_ID: patient-health
+      SPRING_CLOUD_GATEWAY_ROUTES_2_URI: http://patient-service:8081
+      SPRING_CLOUD_GATEWAY_ROUTES_2_PREDICATES_0: Path=/services/patient/actuator/**
+      SPRING_CLOUD_GATEWAY_ROUTES_2_FILTERS_0: StripPrefix=2
+      # Encounter Health Route
+      SPRING_CLOUD_GATEWAY_ROUTES_3_ID: encounter-health
+      SPRING_CLOUD_GATEWAY_ROUTES_3_URI: http://encounter-service:8082
+      SPRING_CLOUD_GATEWAY_ROUTES_3_PREDICATES_0: Path=/services/encounter/actuator/**
+      SPRING_CLOUD_GATEWAY_ROUTES_3_FILTERS_0: StripPrefix=2
+      # Patient Docs Route
+      SPRING_CLOUD_GATEWAY_ROUTES_4_ID: patient-docs
+      SPRING_CLOUD_GATEWAY_ROUTES_4_URI: http://patient-service:8081
+      SPRING_CLOUD_GATEWAY_ROUTES_4_PREDICATES_0: Path=/docs/patient/**
+      SPRING_CLOUD_GATEWAY_ROUTES_4_FILTERS_0: StripPrefix=2
+      # Encounter Docs Route
+      SPRING_CLOUD_GATEWAY_ROUTES_5_ID: encounter-docs
+      SPRING_CLOUD_GATEWAY_ROUTES_5_URI: http://encounter-service:8082
+      SPRING_CLOUD_GATEWAY_ROUTES_5_PREDICATES_0: Path=/docs/encounter/**
+      SPRING_CLOUD_GATEWAY_ROUTES_5_FILTERS_0: StripPrefix=2
+      # Redis Configuration - KORRIGIERT
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      SPRING_REDIS_TIMEOUT: 2000ms
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      # Profile Configuration
+      SPRING_PROFILES_ACTIVE: docker-minimal
+      # Logging Configuration
+      LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_CLOUD_GATEWAY: DEBUG
+      LOGGING_LEVEL_ROOT: INFO
+      # Application Configuration
+      SERVER_PORT: 8080
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,metrics,gateway,circuitbreakers
+      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
+    ports:
+      - "8080:8080"
+    networks:
+      - his-network-minimal
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      patient-service:
+        condition: service_healthy
+      encounter-service:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:8080/actuator/health",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    restart: unless-stopped
+    volumes:
+      - ./logs/gateway:/app/logs
+
+networks:
+  his-network-minimal:
+    driver: bridge
+    name: his-network-minimal
+
+volumes:
+  postgres_data_minimal:
+    name: his-postgres-data-minimal
+  redis_data_minimal:
+    name: his-redis-data-minimal

@@ -1,0 +1,26 @@
+filebeat.inputs:
+- type: log
+  enabled: true
+  paths:
+    - /usr/share/filebeat/logs/gateway/*.log
+    - /usr/share/filebeat/logs/patient/*.log
+    - /usr/share/filebeat/logs/encounter/*.log
+  fields:
+    logtype: application
+    system: his
+  fields_under_root: true
+
+- type: container
+  enabled: true
+  paths:
+    - '/var/lib/docker/containers/*/*.log'
+
+output.logstash:
+  hosts: ["logstash:5044"]
+
+processors:
+- add_host_metadata:
+    when.not.contains.tags: forwarded
+- add_docker_metadata: ~
+
+logging.level: info

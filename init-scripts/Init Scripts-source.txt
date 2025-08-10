@@ -1,0 +1,39 @@
+# HIS Init Scripts - Complete Source Code Structure
+Generated: So 10 Aug 2025 13:15:05 CEST
+Project: Hospital Information System (HIS) - Init Scripts
+=========================================================
+
+## Directory Structure
+```
+./01-init-databases.sql
+```
+
+## Tree Structure
+```
+.
+├── 01-init-databases.sql
+└── Init Scripts-source.txt
+
+1 directory, 2 files
+```
+
+## Source Code Files
+
+### File: ./01-init-databases.sql
+```sql
+-- HIS Database Initialization Script
+\c his_db;
+
+-- Schemas erstellen
+CREATE SCHEMA IF NOT EXISTS his_patient;
+CREATE SCHEMA IF NOT EXISTS his_encounter;
+
+-- Berechtigungen für his_user setzen
+GRANT ALL PRIVILEGES ON SCHEMA his_patient TO his_user;
+GRANT ALL PRIVILEGES ON SCHEMA his_encounter TO his_user;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA his_patient TO his_user;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA his_encounter TO his_user;
+
+\echo 'Database initialization completed for his_db';
+```
+

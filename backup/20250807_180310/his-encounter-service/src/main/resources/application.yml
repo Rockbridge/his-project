@@ -1,0 +1,60 @@
+server:
+  port: 8081
+
+services:
+  patient:
+    url: http://localhost:8080
+
+spring:
+  application:
+    name: encounter-service
+
+  datasource:
+    url: jdbc:h2:mem:encounterdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    database-platform: org.hibernate.dialect.H2Dialect
+
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+      settings:
+        web-allow-others: true
+
+  flyway:
+    enabled: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    de.his.encounter: DEBUG
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+
+feign:
+  client:
+    config:
+      patient-service:
+        connectTimeout: 5000
+        readTimeout: 10000
+        loggerLevel: basic

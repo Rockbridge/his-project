@@ -1,0 +1,212 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: his-api-gateway
+
+  cloud:
+    gateway:
+      # Global CORS Configuration
+      globalcors:
+        corsConfigurations:
+          "[/**]":
+            allowedOriginPatterns: "*"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+              - PATCH
+            allowedHeaders:
+              - "*"
+            allowCredentials: true
+            maxAge: 3600
+
+      # Service Discovery (Static for Docker)
+      discovery:
+        locator:
+          enabled: false
+
+      # HTTP Client Configuration
+      httpclient:
+        connect-timeout: 5000
+        response-timeout: 30s
+        pool:
+          type: elastic
+          max-idle-time: 15s
+          max-life-time: 60s
+
+  # Redis Configuration (for Rate Limiting)
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 10
+          max-idle: 10
+          min-idle: 1
+
+# Custom Gateway Configuration
+his:
+  gateway:
+    # Security Configuration
+    security:
+      jwt:
+        enabled: ${JWT_ENABLED:false}
+        secret: ${JWT_SECRET:your-secret-key-change-in-production-make-it-longer-than-256-bits}
+        expiration: 86400 # 24 hours
+
+      # RBAC Configuration
+      rbac:
+        enabled: ${RBAC_ENABLED:false}
+        admin-roles:
+          - ADMIN
+          - SYSTEM_ADMIN
+        doctor-roles:
+          - DOCTOR
+          - PHYSICIAN
+        nurse-roles:
+          - NURSE
+          - NURSE_PRACTITIONER
+        readonly-roles:
+          - READONLY
+          - GUEST
+
+    # Service Configuration
+    services:
+      patient:
+        url: ${PATIENT_SERVICE_URL:http://patient-service:8081}
+        timeout: 30s
+        retries: 3
+      encounter:
+        url: ${ENCOUNTER_SERVICE_URL:http://encounter-service:8082}
+        timeout: 30s
+        retries: 3
+
+    # Rate Limiting
+    rate-limit:
+      enabled: ${RATE_LIMIT_ENABLED:false}
+      default-rate: 100 # requests per minute
+      burst-capacity: 200
+
+    # Audit Logging
+    audit:
+      enabled: true
+      include-request-body: false
+      include-response-body: false
+      sensitive-headers:
+        - authorization
+        - x-api-key
+        - cookie
+
+# Circuit Breaker Configuration
+resilience4j:
+  circuitbreaker:
+    instances:
+      patient-service-cb:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        waitDurationInOpenState: 5s
+        failureRateThreshold: 50
+        slowCallRateThreshold: 50
+        slowCallDurationThreshold: 2s
+
+      encounter-service-cb:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        waitDurationInOpenState: 5s
+        failureRateThreshold: 50
+        slowCallRateThreshold: 50
+        slowCallDurationThreshold: 2s
+
+  # Retry Configuration
+  retry:
+    instances:
+      patient-service:
+        maxAttempts: 3
+        waitDuration: 100ms
+        exponentialBackoffMultiplier: 2
+        enableExponentialBackoff: true
+
+      encounter-service:
+        maxAttempts: 3
+        waitDuration: 100ms
+        exponentialBackoffMultiplier: 2
+        enableExponentialBackoff: true
+
+# Health Check Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include:
+          - health
+          - info
+          - metrics
+          - gateway
+          - circuitbreakers
+          - circuitbreakerevents
+          - prometheus
+  endpoint:
+    health:
+      show-details: always
+      show-components: always
+    gateway:
+      enabled: true
+  health:
+    circuitbreakers:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+# Logging Configuration for Docker
+logging:
+  level:
+    org.springframework.cloud.gateway: INFO
+    org.springframework.cloud.gateway.filter: DEBUG
+    org.springframework.web.cors: INFO
+    org.springframework.security: INFO
+    de.his.gateway: DEBUG
+    reactor.netty.http.client: INFO
+    org.springframework.cloud.loadbalancer: INFO
+    resilience4j: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%X{traceId:-},%X{spanId:-}] [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%X{traceId:-},%X{spanId:-}] [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/gateway-service.log
+    max-size: 100MB
+    max-history: 30
+    total-size-cap: 3GB
+
+# API Documentation
+springdoc:
+  api-docs:
+    enabled: true
+    path: /api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    urls:
+      - name: Patient Service
+        url: /docs/patient/api-docs
+        display-name: "Patient Service API"
+      - name: Encounter Service
+        url: /docs/encounter/api-docs
+        display-name: "Encounter Service API"
+      - name: Gateway Service
+        url: /api-docs
+        display-name: "API Gateway"

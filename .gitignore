@@ -1,0 +1,36 @@
+# Build outputs
+target/
+*.jar
+*.war
+*.class
+
+# IDE files
+.vscode/
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker volumes
+postgres_data*/
+redis_data*/
+elasticsearch_data*/
+logstash_data*/
+kibana_data*/
+
+# Logs
+logs/
+*.log
+
+# Environment
+.env
+.env.local
+
+# Backup files
+*.bak
+*.backup
+*~

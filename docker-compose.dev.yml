@@ -1,0 +1,310 @@
+services:
+  # Elasticsearch - Search and Analytics Engine
+  elasticsearch:
+    image: elasticsearch:8.11.0
+    container_name: his-elasticsearch
+    environment:
+      - node.name=elasticsearch
+      - cluster.name=his-cluster
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+      - xpack.security.enabled=false
+      - xpack.security.enrollment.enabled=false
+      - cluster.routing.allocation.disk.threshold_enabled=false
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    networks:
+      - elk
+    healthcheck:
+      test:
+        ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Logstash - Log Processing Pipeline
+  logstash:
+    image: logstash:8.11.0
+    container_name: his-logstash
+    environment:
+      - "LS_JAVA_OPTS=-Xmx512m -Xms512m"
+    volumes:
+      - ./elk-config/logstash/pipeline:/usr/share/logstash/pipeline:ro
+      - ./elk-config/logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
+      - ./logs:/usr/share/logstash/logs:ro
+    ports:
+      - "5044:5044"
+      - "5001:5001/tcp" # Port 5000 → 5001 (macOS Konflikt vermeiden)
+      - "5001:5001/udp" # Port 5000 → 5001 (macOS Konflikt vermeiden)
+      - "9600:9600"
+    networks:
+      - elk
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9600 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Kibana - Data Visualization
+  kibana:
+    image: kibana:8.11.0
+    container_name: his-kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - server.host=0.0.0.0
+      - server.shutdownTimeout=5s
+      - logging.appenders.console.type=console
+      - logging.appenders.console.layout.type=json
+    volumes:
+      - ./elk-config/kibana/kibana.yml:/usr/share/kibana/config/kibana.yml:ro
+    ports:
+      - "5601:5601"
+    networks:
+      - elk
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5601/api/status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: his-postgres-elk
+    environment:
+      POSTGRES_DB: his_db
+      POSTGRES_USER: his_user
+      POSTGRES_PASSWORD: dev_password
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    networks:
+      - his-network
+      - elk
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U his_user -d his_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for Rate Limiting and Caching
+  redis:
+    image: redis:7-alpine
+    container_name: his-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - his-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: redis-server --appendonly yes
+
+  # API Gateway - Central Entry Point
+  api-gateway:
+    build:
+      context: ./his-api-gateway
+      dockerfile: Dockerfile
+    container_name: his-api-gateway
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+
+      # JWT Configuration (disabled by default)
+      JWT_ENABLED: "false"
+      JWT_SECRET: "your-secret-key-change-in-production-make-it-longer-than-256-bits"
+
+      # Rate Limiting (disabled by default)
+      RATE_LIMIT_ENABLED: "false"
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+
+      # Service URLs
+      PATIENT_SERVICE_URL: "http://patient-service:8081"
+      ENCOUNTER_SERVICE_URL: "http://encounter-service:8082"
+
+      # ELK Integration
+      LOGSTASH_HOST: logstash
+      LOGSTASH_PORT: 5001 # Updated port
+    ports:
+      - "8080:8080" # Gateway runs on 8080 (external access)
+    volumes:
+      - ./logs/gateway:/app/logs
+    networks:
+      - his-network
+      - elk
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      logstash:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=api-gateway,environment=development"
+
+  # Patient Service - Now on Port 8081
+  patient-service:
+    build:
+      context: ./his-patient-service
+      dockerfile: Dockerfile
+    container_name: his-patient-service-elk
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/his_patient
+      SPRING_DATASOURCE_USERNAME: his_user
+      SPRING_DATASOURCE_PASSWORD: dev_password
+      SERVER_PORT: 8081 # Changed from 8080 to 8081
+
+      # ELK Integration
+      LOGSTASH_HOST: logstash
+      LOGSTASH_PORT: 5001 # Updated port
+    ports:
+      - "8081:8081" # Direct access to Patient Service
+    volumes:
+      - ./logs/patient:/app/logs
+    networks:
+      - his-network
+      - elk
+    depends_on:
+      postgres:
+        condition: service_healthy
+      logstash:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:8081/actuator/health",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=patient-service,environment=development"
+
+  # Encounter Service - Now on Port 8082
+  encounter-service:
+    build:
+      context: ./his-encounter-service
+      dockerfile: Dockerfile
+    container_name: his-encounter-service-elk
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/his_encounter
+      SPRING_DATASOURCE_USERNAME: his_user
+      SPRING_DATASOURCE_PASSWORD: dev_password
+      SERVER_PORT: 8082 # Changed from 8081 to 8082
+      SERVICES_PATIENT_URL: http://patient-service:8081 # Updated Patient Service URL
+
+      # ELK Integration
+      LOGSTASH_HOST: logstash
+      LOGSTASH_PORT: 5001 # Updated port
+    ports:
+      - "8082:8082" # Direct access to Encounter Service
+    volumes:
+      - ./logs/encounter:/app/logs
+    networks:
+      - his-network
+      - elk
+    depends_on:
+      postgres:
+        condition: service_healthy
+      patient-service:
+        condition: service_healthy
+      logstash:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:8082/actuator/health",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=encounter-service,environment=development"
+
+  # Filebeat - Log Shipper
+  filebeat:
+    image: elastic/filebeat:8.11.0
+    container_name: his-filebeat
+    user: root
+    environment:
+      - ELASTICSEARCH_HOST=elasticsearch:9200
+      - LOGSTASH_HOST=logstash:5044
+    volumes:
+      - ./elk-config/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - ./logs:/usr/share/filebeat/logs:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - filebeat_data:/usr/share/filebeat/data
+    networks:
+      - elk
+    depends_on:
+      logstash:
+        condition: service_healthy
+    command: filebeat -e -strict.perms=false
+
+volumes:
+  elasticsearch_data:
+    driver: local
+  postgres_data:
+    driver: local
+  filebeat_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  his-network:
+    driver: bridge
+  elk:
+    driver: bridge

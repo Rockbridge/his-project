@@ -1,0 +1,12 @@
+http.host: "0.0.0.0"
+xpack.monitoring.elasticsearch.hosts: [ "http://elasticsearch:9200" ]
+path.config: /usr/share/logstash/pipeline
+
+# Logging-Level reduzieren
+log.level: warn
+path.logs: /var/log/logstash
+
+# Pipeline-Debugging deaktivieren
+pipeline.unsafe_shutdown: false
+pipeline.batch.size: 125
+pipeline.batch.delay: 50
