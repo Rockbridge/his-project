@@ -1,5 +1,5 @@
 # HIS Project Root - Configuration and Infrastructure Files
-Generated: So 10 Aug 2025 13:15:05 CEST
+Generated: Mo 11 Aug 2025 23:28:50 CEST
 Project: Hospital Information System (HIS) - Root Directory
 =========================================================
 
@@ -11,13 +11,23 @@ Project: Hospital Information System (HIS) - Root Directory
 ./debug.sh
 ./docker-compose-minimal.yml
 ./docker-compose.dev.yml
+./extract-source-files Kopie.sh
 ./extract-source-files.sh
+./frontend_working_solution.sh
+./his_curl_testdata.sh
 ./his-api-gateway/API Gateway-source.txt
 ./his-api-gateway/Dockerfile
 ./his-api-gateway/pom.xml
+./his-complete-documentation.md
 ./his-encounter-service/Dockerfile
 ./his-encounter-service/Encounter Service-source.txt
+./his-encounter-service/exception_tests.sh
 ./his-encounter-service/pom.xml
+./his-frontend/package-lock.json
+./his-frontend/package.json
+./his-frontend/React Frontend-source.txt
+./his-frontend/README.md
+./his-patient-service/create_java.sh
 ./his-patient-service/Dockerfile
 ./his-patient-service/Patient Service-source.txt
 ./his-patient-service/pom.xml
@@ -28,10 +38,11 @@ Project: Hospital Information System (HIS) - Root Directory
 
 ## Available Services
 ```
-drwxr-xr-x  14 mhn  staff    448 10 Aug 08:34 his-api-gateway
-drwxr-xr-x@ 18 mhn  staff    576 10 Aug 08:34 his-encounter-service
-drwxr-xr-x  16 mhn  staff    512 10 Aug 08:34 his-patient-service
-drwxr-xr-x   5 mhn  staff    160 10 Aug 08:39 init-scripts
+drwxr-xr-x  14 mhn  staff      448 10 Aug 08:34 his-api-gateway
+drwxr-xr-x@ 19 mhn  staff      608 10 Aug 16:17 his-encounter-service
+drwxr-xr-x  14 mhn  staff      448 11 Aug 21:42 his-frontend
+drwxr-xr-x  18 mhn  staff      576 10 Aug 16:59 his-patient-service
+drwxr-xr-x   5 mhn  staff      160 10 Aug 08:39 init-scripts
 ```
 
 ## Root Configuration Files
@@ -956,288 +967,315 @@ echo "✅ Realistic test data creation completed!"
 ```bash
 #!/bin/bash
 
-# ===========================================
-# HIS SQL DEBUGGING - AUTH WORKS, NO DATA SAVED
-# Authentication erfolgreich, aber keine INSERT statements
-# ===========================================
+# Korrekte API-Calls basierend auf dem tatsächlichen Projektwissen
+# WICHTIG: Encounter List API existiert NICHT - nur Patient-spezifische Calls
 
-echo "🔍 SQL DEBUGGING - AUTH OK, BUT NO DATA SAVED"
-echo "=============================================="
+AUTH_HEADER="Authorization: Basic $(echo -n 'admin:dev-password' | base64)"
 
-NEW_PASSWORD="b0e91dc2-3090-4f2c-8fd2-98c8c94efc3c"
-PATIENT_ID="ec3b64a8-f525-4e59-953d-839eb033398d"
+echo "🔧 Korrekte Frontend API-Calls (Projektwissen-basiert)"
+echo "====================================================="
 
-# ===========================================
-# 1. PROGRESS CONFIRMATION
-# ===========================================
-
-echo "1️⃣ PROGRESS CONFIRMATION"
-echo "======================="
-
-echo "✅ AUTHENTICATION: FIXED"
-echo "• Keine HTTP 401 mehr"
-echo "• Service akzeptiert requests"
-echo "• Response kommt zurück (leere paginated result)"
-echo ""
-echo "❌ VERBLEIBENDES PROBLEM:"
-echo "• Encounters werden nicht in PostgreSQL gespeichert"
-echo "• Keine SQL INSERT statements in logs"
-echo "• Silent failure in service logic"
-
-# ===========================================
-# 2. SQL LOGGING ANALYSIS
-# ===========================================
+# =================================================================
+# 1. BACKEND-LOGS ANALYSIEREN (Patient Service HTTP 500 Problem)
+# =================================================================
 
 echo ""
-echo "2️⃣ SQL LOGGING ANALYSIS"
-echo "======================"
+echo "1️⃣ Backend-Logs analysieren"
+echo "---------------------------"
 
-echo "🔍 CHECK FOR SQL STATEMENTS:"
-echo ""
-
-echo "Check for any Hibernate SQL in logs:"
-docker-compose -f docker-compose-minimal.yml logs encounter-service | grep -i "Hibernate:" | tail -10
+echo "Patient Service Logs (letzten 50 Zeilen):"
+docker-compose -f docker-compose-minimal.yml logs his-patient-service-minimal --tail=50 | grep -i "error\|exception\|stack" || echo "Keine Error-Logs sichtbar"
 
 echo ""
-echo "Check for INSERT statements:"
-docker-compose -f docker-compose-minimal.yml logs encounter-service | grep -i "INSERT" | tail -5
+echo "Encounter Service Logs (letzten 50 Zeilen):"
+docker-compose -f docker-compose-minimal.yml logs his-encounter-service-minimal --tail=50 | grep -i "error\|exception\|stack" || echo "Keine Error-Logs sichtbar"
 
 echo ""
-echo "Check for any SQL activity:"
-docker-compose -f docker-compose-minimal.yml logs encounter-service | grep -i "SQL" | tail -10
+echo "API Gateway Logs (letzten 50 Zeilen):"
+docker-compose -f docker-compose-minimal.yml logs his-api-gateway-minimal --tail=50 | grep -i "error\|exception\|stack" || echo "Keine Error-Logs sichtbar"
 
-# ===========================================
-# 3. REAL-TIME REQUEST MONITORING
-# ===========================================
-
-echo ""
-echo "3️⃣ REAL-TIME REQUEST MONITORING"
-echo "=============================="
-
-echo "🧪 CREATE ENCOUNTER WITH LIVE LOG MONITORING:"
-echo ""
-
-# Create encounter and monitor logs immediately
-echo "Creating encounter with live monitoring..."
-
-curl -X POST "http://localhost:8082/api/v1/encounters" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Basic $(echo -n "user:${NEW_PASSWORD}" | base64)" \
-  -d "{
-    \"patientId\": \"${PATIENT_ID}\",
-    \"practitionerId\": \"$(uuidgen)\",
-    \"type\": \"EMERGENCY\",
-    \"encounterDate\": \"$(date -u +%Y-%m-%dT%H:%M:%S)\",
-    \"billingContext\": \"GKV\"
-  }" && echo "Request sent!"
+# =================================================================
+# 2. KORREKTE ENCOUNTER API ENDPUNKTE (aus Projektwissen)
+# =================================================================
 
 echo ""
-echo "Checking logs immediately after request:"
-docker-compose -f docker-compose-minimal.yml logs encounter-service --tail=20
+echo "2️⃣ Korrekte Encounter API Endpunkte"
+echo "-----------------------------------"
 
-# ===========================================
-# 4. VALIDATION FAILURE TESTING
-# ===========================================
+echo "❌ FALSCH: GET /api/v1/encounters (existiert nicht!)"
+echo "✅ RICHTIG: Laut Projektwissen gibt es nur:"
+echo "   • POST /api/v1/encounters - Encounter erstellen"
+echo "   • GET /api/v1/encounters/{id} - Einzelner Encounter" 
+echo "   • GET /api/v1/encounters/patient/{patientId} - Patient-Encounters"
+
+# Test Patient Service Health (direkter Zugriff)
+echo ""
+echo "Testing Patient Service Health (direkt):"
+PATIENT_HEALTH=$(curl -s http://localhost:8081/actuator/health 2>/dev/null)
+echo "Patient Service Health: $(echo "$PATIENT_HEALTH" | jq -r '.status // "ERROR"' 2>/dev/null || echo "ERROR")"
+
+# Test Encounter Service Health (direkter Zugriff)
+echo ""
+echo "Testing Encounter Service Health (direkt):"
+ENCOUNTER_HEALTH=$(curl -s http://localhost:8082/actuator/health 2>/dev/null)
+echo "Encounter Service Health: $(echo "$ENCOUNTER_HEALTH" | jq -r '.status // "ERROR"' 2>/dev/null || echo "ERROR")"
+
+# =================================================================
+# 3. SWAGGER UI ÜBERPRÜFUNG (Verfügbare Endpunkte anzeigen)
+# =================================================================
 
 echo ""
-echo "4️⃣ VALIDATION FAILURE TESTING"
-echo "============================="
+echo "3️⃣ Swagger UI Überprüfung"
+echo "-------------------------"
 
-echo "🧪 TEST @VALID ANNOTATION BEHAVIOR:"
-echo ""
-
-# Test with missing required fields (should trigger validation error)
-echo "Testing with missing required field (should return 400):"
-VALIDATION_RESPONSE=$(curl -s -w "HTTP_CODE:%{http_code}\n" \
-  -X POST "http://localhost:8082/api/v1/encounters" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Basic $(echo -n "user:${NEW_PASSWORD}" | base64)" \
-  -d "{\"patientId\":\"${PATIENT_ID}\"}" 2>/dev/null)
-
-echo "Validation test response:"
-echo "$VALIDATION_RESPONSE"
-
-# If validation returns 400, then @Valid works
-# If validation returns 200/201, then validation is not working
-
-# ===========================================
-# 5. SERVICE METHOD DEBUGGING
-# ===========================================
-
-echo ""
-echo "5️⃣ SERVICE METHOD DEBUGGING"
-echo "=========================="
-
-echo "🔍 CHECK SERVICE LAYER LOGGING:"
-echo ""
-
-echo "Check for service method calls:"
-docker-compose -f docker-compose-minimal.yml logs encounter-service | grep -i "Creating\|encounter\|service" | tail -10
-
-echo ""
-echo "Check for any DEBUG level logs:"
-docker-compose -f docker-compose-minimal.yml logs encounter-service | grep "DEBUG" | tail -10
-
-echo ""
-echo "Check for any transaction logs:"
-docker-compose -f docker-compose-minimal.yml logs encounter-service | grep -i "transaction\|commit\|rollback" | tail -5
-
-# ===========================================
-# 6. PATIENT VALIDATION TESTING
-# ===========================================
-
-echo ""
-echo "6️⃣ PATIENT VALIDATION TESTING"
-echo "============================="
-
-echo "🔗 TEST FEIGN CLIENT FUNCTIONALITY:"
-echo ""
-
-echo "Test 1: Can encounter service reach patient service?"
-docker exec his-encounter-service-minimal wget -q --spider http://patient-service:8081/actuator/health && echo "✅ Patient service reachable" || echo "❌ Patient service NOT reachable"
-
-echo ""
-echo "Test 2: Patient exists via direct API?"
-PATIENT_EXISTS=$(curl -s "http://localhost:8081/api/v1/patients/${PATIENT_ID}" \
-  -H "Authorization: Basic $(echo -n 'admin:dev-password' | base64)" | jq -r '.id' 2>/dev/null)
-
-if [ "$PATIENT_EXISTS" = "$PATIENT_ID" ]; then
-    echo "✅ Patient exists: $PATIENT_ID"
+echo "Patient Service Swagger UI:"
+echo "  URL: http://localhost:8081/swagger-ui.html"
+SWAGGER_PATIENT=$(curl -s http://localhost:8081/swagger-ui.html 2>/dev/null | head -c 100)
+if [[ "$SWAGGER_PATIENT" == *"swagger"* ]] || [[ "$SWAGGER_PATIENT" == *"Swagger"* ]]; then
+    echo "  ✅ Swagger UI erreichbar"
 else
-    echo "❌ Patient NOT found or not accessible"
-    echo "Response: $PATIENT_EXISTS"
+    echo "  ❌ Swagger UI nicht erreichbar"
 fi
 
 echo ""
-echo "Test 3: Encounter with explicit patient validation:"
-curl -X POST "http://localhost:8082/api/v1/encounters/with-patient-validation" \
+echo "Encounter Service Swagger UI:"
+echo "  URL: http://localhost:8082/swagger-ui.html" 
+SWAGGER_ENCOUNTER=$(curl -s http://localhost:8082/swagger-ui.html 2>/dev/null | head -c 100)
+if [[ "$SWAGGER_ENCOUNTER" == *"swagger"* ]] || [[ "$SWAGGER_ENCOUNTER" == *"Swagger"* ]]; then
+    echo "  ✅ Swagger UI erreichbar"
+else
+    echo "  ❌ Swagger UI nicht erreichbar"
+fi
+
+# =================================================================
+# 4. PATIENT SERVICE DEBUGGING (HTTP 500 Problem lösen)
+# =================================================================
+
+echo ""
+echo "4️⃣ Patient Service Debugging"
+echo "----------------------------"
+
+# Test verschiedene Patient Endpunkte
+echo "Testing Patient Actuator Health:"
+curl -s -w "HTTP_%{http_code} " http://localhost:8081/actuator/health 2>/dev/null | head -c 200
+echo ""
+
+echo ""
+echo "Testing Patient Actuator Info:"
+curl -s -w "HTTP_%{http_code} " http://localhost:8081/actuator/info 2>/dev/null | head -c 200
+echo ""
+
+echo ""
+echo "Testing Patient API Root:"
+curl -s -w "HTTP_%{http_code} " -H "$AUTH_HEADER" http://localhost:8081/api/v1/patients 2>/dev/null | head -c 200
+echo ""
+
+echo ""
+echo "Testing Patient API via Gateway:"
+curl -s -w "HTTP_%{http_code} " -H "$AUTH_HEADER" http://localhost:8080/api/v1/patients 2>/dev/null | head -c 200
+echo ""
+
+# =================================================================
+# 5. WORKING PATIENT CREATION (Um Daten für Encounter zu haben)
+# =================================================================
+
+echo ""
+echo "5️⃣ Patient Creation Test"
+echo "------------------------"
+
+# Generate unique KVNR (1 Buchstabe + 9 Ziffern)
+UNIQUE_KVNR="T$(printf "%09d" $(($(date +%s) % 1000000000)))"
+echo "Trying to create patient with KVNR: $UNIQUE_KVNR"
+
+PATIENT_CREATION=$(curl -s -w "HTTPSTATUS:%{http_code}" \
+  -X POST http://localhost:8080/api/v1/patients \
   -H "Content-Type: application/json" \
-  -H "Authorization: Basic $(echo -n "user:${NEW_PASSWORD}" | base64)" \
+  -H "$AUTH_HEADER" \
   -d "{
-    \"patientId\": \"${PATIENT_ID}\",
-    \"practitionerId\": \"$(uuidgen)\",
-    \"type\": \"CONSULTATION\",
-    \"encounterDate\": \"$(date -u +%Y-%m-%dT%H:%M:%S)\",
-    \"billingContext\": \"GKV\"
-  }"
+    \"firstName\": \"Debug\",
+    \"lastName\": \"Patient\",
+    \"birthDate\": \"1990-01-01\",
+    \"gender\": \"MALE\",
+    \"kvnr\": \"$UNIQUE_KVNR\",
+    \"insuranceType\": \"STATUTORY\"
+  }")
+
+PATIENT_BODY=$(echo "$PATIENT_CREATION" | sed -E 's/HTTPSTATUS:[0-9]{3}$//')
+PATIENT_STATUS=$(echo "$PATIENT_CREATION" | grep -o "HTTPSTATUS:[0-9]*" | cut -d: -f2)
+
+echo "Patient Creation Status: $PATIENT_STATUS"
+
+if [ "$PATIENT_STATUS" = "201" ]; then
+    echo "✅ Patient created successfully!"
+    PATIENT_ID=$(echo "$PATIENT_BODY" | jq -r '.id')
+    echo "Patient ID: $PATIENT_ID"
+else
+    echo "❌ Patient creation failed:"
+    echo "$PATIENT_BODY" | jq '.' 2>/dev/null || echo "$PATIENT_BODY"
+fi
+
+# =================================================================
+# 6. KORREKTE ENCOUNTER APIS (basierend auf Projektwissen)
+# =================================================================
 
 echo ""
-echo "Logs after patient validation test:"
-docker-compose -f docker-compose-minimal.yml logs encounter-service --tail=10
+echo "6️⃣ Korrekte Encounter APIs testen"
+echo "---------------------------------"
 
-# ===========================================
-# 7. DETAILED ERROR ANALYSIS
-# ===========================================
+if [ -n "$PATIENT_ID" ] && [ "$PATIENT_ID" != "null" ]; then
+    echo "Testing Encounter Creation for Patient: $PATIENT_ID"
+    
+    # Encounter erstellen (korrekte API laut Projektwissen)
+    PRACTITIONER_ID=$(uuidgen | tr '[:upper:]' '[:lower:]')
+    
+    ENCOUNTER_CREATION=$(curl -s -w "HTTPSTATUS:%{http_code}" \
+      -X POST http://localhost:8080/api/v1/encounters \
+      -H "Content-Type: application/json" \
+      -H "$AUTH_HEADER" \
+      -d "{
+        \"patientId\": \"$PATIENT_ID\",
+        \"practitionerId\": \"$PRACTITIONER_ID\",
+        \"type\": \"INITIAL\",
+        \"encounterDate\": \"$(date -u +%Y-%m-%dT%H:%M:%S)\",
+        \"billingContext\": \"GKV\"
+      }")
+    
+    ENCOUNTER_BODY=$(echo "$ENCOUNTER_CREATION" | sed -E 's/HTTPSTATUS:[0-9]{3}$//')
+    ENCOUNTER_STATUS=$(echo "$ENCOUNTER_CREATION" | grep -o "HTTPSTATUS:[0-9]*" | cut -d: -f2)
+    
+    echo "Encounter Creation Status: $ENCOUNTER_STATUS"
+    
+    if [ "$ENCOUNTER_STATUS" = "201" ]; then
+        echo "✅ Encounter created successfully!"
+        ENCOUNTER_ID=$(echo "$ENCOUNTER_BODY" | jq -r '.id')
+        echo "Encounter ID: $ENCOUNTER_ID"
+        
+        # Test GET einzelner Encounter (korrekte API)
+        echo ""
+        echo "Testing GET single encounter:"
+        curl -s -w "HTTP_%{http_code} " -H "$AUTH_HEADER" \
+          http://localhost:8080/api/v1/encounters/$ENCOUNTER_ID | head -c 200
+        echo ""
+        
+        # Test GET Patient-Encounters (korrekte API)
+        echo ""
+        echo "Testing GET patient encounters:"
+        curl -s -w "HTTP_%{http_code} " -H "$AUTH_HEADER" \
+          http://localhost:8080/api/v1/encounters/patient/$PATIENT_ID | head -c 200
+        echo ""
+        
+    else
+        echo "❌ Encounter creation failed:"
+        echo "$ENCOUNTER_BODY" | jq '.' 2>/dev/null || echo "$ENCOUNTER_BODY"
+    fi
+else
+    echo "⚠️ No Patient ID available for Encounter testing"
+fi
 
-echo ""
-echo "7️⃣ DETAILED ERROR ANALYSIS"
-echo "=========================="
-
-echo "🔍 COMPREHENSIVE LOG ANALYSIS:"
-echo ""
-
-echo "All recent encounter service activity:"
-docker-compose -f docker-compose-minimal.yml logs encounter-service --since="5m" | tail -30
-
-echo ""
-echo "Any warnings or errors:"
-docker-compose -f docker-compose-minimal.yml logs encounter-service | grep -i "warn\|error" | tail -10
-
-echo ""
-echo "Any exception traces:"
-docker-compose -f docker-compose-minimal.yml logs encounter-service | grep -A 5 -B 5 "Exception" | tail -20
-
-# ===========================================
-# 8. MANUAL DEBUGGING COMMANDS
-# ===========================================
-
-echo ""
-echo "8️⃣ MANUAL DEBUGGING COMMANDS"
-echo "=========================="
-
-echo "🚀 RUN THESE COMMANDS TO DEBUG:"
-echo ""
-
-echo "# 1. Monitor logs in real-time while making request:"
-echo "# Terminal 1:"
-echo "docker-compose -f docker-compose-minimal.yml logs encounter-service -f"
-echo ""
-echo "# Terminal 2:"
-echo "curl -X POST 'http://localhost:8082/api/v1/encounters' \\"
-echo "  -H 'Content-Type: application/json' \\"
-echo "  -H 'Authorization: Basic \$(echo -n \"user:${NEW_PASSWORD}\" | base64)' \\"
-echo "  -d '{"
-echo "    \"patientId\": \"${PATIENT_ID}\","
-echo "    \"practitionerId\": \"'$(uuidgen)'\","
-echo "    \"type\": \"CONSULTATION\","
-echo "    \"encounterDate\": \"'$(date -u +%Y-%m-%dT%H:%M:%S)'\","
-echo "    \"billingContext\": \"GKV\""
-echo "  }'"
-echo ""
-
-echo "# 2. Check if validation is working:"
-echo "curl -s -w 'HTTP_CODE:%{http_code}\\n' \\"
-echo "  -X POST 'http://localhost:8082/api/v1/encounters' \\"
-echo "  -H 'Content-Type: application/json' \\"
-echo "  -H 'Authorization: Basic \$(echo -n \"user:${NEW_PASSWORD}\" | base64)' \\"
-echo "  -d '{\"patientId\":\"${PATIENT_ID}\"}'"
-echo ""
-
-echo "# 3. Test patient service connectivity:"
-echo "docker exec his-encounter-service-minimal curl -s http://patient-service:8081/actuator/health"
-
-# ===========================================
-# 9. HYPOTHESIS SUMMARY
-# ===========================================
+# =================================================================
+# 7. FRONTEND-KORREKTE API CALLS
+# =================================================================
 
 echo ""
-echo "9️⃣ HYPOTHESIS SUMMARY"
-echo "===================="
+echo "7️⃣ Frontend-korrekte API Calls"
+echo "------------------------------"
 
-echo "🎯 CURRENT HYPOTHESES:"
+echo "Für React Frontend verwenden Sie:"
 echo ""
-echo "HYPOTHESIS A: VALIDATION SILENT FAILURE"
-echo "• @Valid @RequestBody CreateEncounterRequest fails"
-echo "• GlobalExceptionHandler returns empty response"
-echo "• No service method execution"
-echo ""
-echo "HYPOTHESIS B: PATIENT VALIDATION FAILURE"
-echo "• Feign client fails to reach patient service"
-echo "• Service throws exception → transaction rollback"
-echo "• Exception swallowed by try-catch"
-echo ""
-echo "HYPOTHESIS C: TRANSACTION ROLLBACK"
-echo "• Service saves encounter successfully"
-echo "• Later exception → automatic rollback"
-echo "• Response sent before rollback"
-echo ""
-echo "HYPOTHESIS D: MAPPING PROBLEM"
-echo "• Request body not mapping to CreateEncounterRequest"
-echo "• Controller method not called"
-echo "• No service execution"
-echo ""
-echo "✅ LOGS WILL REVEAL THE EXACT CAUSE!"
 
-# ===========================================
-# 10. NEXT STEPS
-# ===========================================
+echo "✅ Patient List (FIXED):"
+echo "   Aktuell: 500 Error - Backend-Problem"
+echo "   Korrekt: GET /api/v1/patients"
+echo "   curl -H \"$AUTH_HEADER\" http://localhost:8080/api/v1/patients"
 
 echo ""
-echo "🔟 NEXT STEPS"
-echo "============="
+echo "✅ Patient Search (FIXED):"
+echo "   Aktuell: 500 Error - Backend-Problem" 
+echo "   Korrekt: GET /api/v1/patients?q=searchterm"
+echo "   curl -H \"$AUTH_HEADER\" 'http://localhost:8080/api/v1/patients?q=Max'"
 
-echo "🎯 DEBUGGING PRIORITY:"
 echo ""
-echo "1. Monitor logs in real-time during request"
-echo "2. Check if controller method is called"
-echo "3. Check if service method is executed"
-echo "4. Check if SQL statements are generated"
-echo "5. Check for any exceptions or rollbacks"
+echo "❌ Encounter List (NICHT IMPLEMENTIERT):"
+echo "   Falsch: GET /api/v1/encounters (existiert nicht)"
+echo "   Alternative: GET /api/v1/encounters/patient/{patientId}"
+
 echo ""
-echo "🚀 START WITH: Real-time log monitoring while making request"
+echo "✅ Patient-Encounters (KORREKT):"
+echo "   curl -H \"$AUTH_HEADER\" http://localhost:8080/api/v1/encounters/patient/{patientId}"
+
+echo ""
+echo "✅ Single Encounter (KORREKT):"
+echo "   curl -H \"$AUTH_HEADER\" http://localhost:8080/api/v1/encounters/{encounterId}"
+
+echo ""
+echo "✅ Encounter Actions (KORREKT):"
+echo "   Start: PUT /api/v1/encounters/{id}/start"
+echo "   Complete: PUT /api/v1/encounters/{id}/complete"
+
+# =================================================================
+# 8. FRONTEND DASHBOARD WORKAROUND
+# =================================================================
+
+echo ""
+echo "8️⃣ Frontend Dashboard Workaround"
+echo "--------------------------------"
+
+echo "Da GET /api/v1/encounters nicht existiert, muss das Frontend:"
+echo ""
+echo "1. Alle Patienten laden: GET /api/v1/patients"
+echo "2. Für jeden Patient Encounters laden: GET /api/v1/encounters/patient/{patientId}"
+echo "3. Client-seitig aggregieren für Dashboard-Statistiken"
+
+echo ""
+echo "React Frontend Code-Beispiel:"
+cat << 'EOF'
+// Frontend Workaround für Encounter List
+const loadAllEncounters = async () => {
+  const patients = await fetch('/api/v1/patients');
+  const allEncounters = [];
+  
+  for (const patient of patients) {
+    const encounters = await fetch(`/api/v1/encounters/patient/${patient.id}`);
+    allEncounters.push(...encounters);
+  }
+  
+  return allEncounters;
+};
+EOF
+
+# =================================================================
+# ZUSAMMENFASSUNG
+# =================================================================
+
+echo ""
+echo "=================================================="
+echo "🎯 FRONTEND INTEGRATION SUMMARY"
+echo "=================================================="
+echo ""
+echo "🚨 BACKEND PROBLEME:"
+echo "  1. Patient Service: HTTP 500 (Internal Server Error)"
+echo "  2. Encounter List API: Existiert nicht (nur patient-spezifisch)"
+echo ""
+echo "✅ VERFÜGBARE APIS:"
+echo "  • Patient CREATE: POST /api/v1/patients"
+echo "  • Patient GET: GET /api/v1/patients (aktuell 500 Error)"
+echo "  • Patient Search: GET /api/v1/patients?q=term (aktuell 500 Error)"
+echo "  • Encounter CREATE: POST /api/v1/encounters"
+echo "  • Encounter GET: GET /api/v1/encounters/{id}"
+echo "  • Patient Encounters: GET /api/v1/encounters/patient/{patientId}"
+echo ""
+echo "🔧 NEXT STEPS:"
+echo "  1. Patient Service HTTP 500 Problem lösen"
+echo "  2. Frontend anpassen für patient-spezifische Encounter-Calls"
+echo "  3. Dashboard client-seitig aggregieren"
+echo ""
+echo "📋 REACT FRONTEND ANPASSUNGEN ERFORDERLICH:"
+echo "  • Encounter List durch Patient-spezifische Calls ersetzen"
+echo "  • Dashboard-Statistiken client-seitig berechnen"
+echo "  • Error-Handling für Patient Service verbessern"
 ```
 
-### File: ./extract-source-files.sh
+### File: ./extract-source-files Kopie.sh
 ```bash
 # In das Projekt-Root-Verzeichnis wechseln (wo his-encounter-service/, his-patient-service/, his-api-gateway/ liegen)
 cd his-project  # oder wie auch immer dein Root-Verzeichnis heißt
@@ -1514,6 +1552,935 @@ fi
 echo "- Summary: Sources/00-extraction-summary.txt"
 echo ""
 echo "All source code extractions completed and copied to Sources directory!"
+```
+
+### File: ./extract-source-files.sh
+```bash
+# In das Projekt-Root-Verzeichnis wechseln (wo his-encounter-service/, his-patient-service/, his-api-gateway/, his-frontend/ liegen)
+cd his-project  # oder wie auch immer dein Root-Verzeichnis heißt
+
+# Sources Verzeichnis erstellen/leeren
+echo "Preparing Sources directory..."
+if [ -d "Sources" ]; then
+    rm -rf Sources/*
+else
+    mkdir Sources
+fi
+
+# Funktion für Service-Extraktion
+extract_service() {
+    local service_name=$1
+    local service_dir=$2
+    local output_file="${service_name}-source.txt"
+    
+    echo "Extracting ${service_name}..."
+    
+    # In Service-Verzeichnis wechseln
+    cd "$service_dir"
+    
+    # Output-File erstellen
+    echo "# HIS ${service_name} - Complete Source Code Structure" > "$output_file"
+    echo "Generated: $(date)" >> "$output_file"
+    echo "Project: Hospital Information System (HIS) - ${service_name}" >> "$output_file"
+    echo "=========================================================" >> "$output_file"
+    echo "" >> "$output_file"
+    
+    # Verzeichnisstruktur anzeigen (ohne Backups)
+    echo "## Directory Structure" >> "$output_file"
+    echo "\`\`\`" >> "$output_file"
+    find . -type f \( -name "*.java" -o -name "*.yml" -o -name "*.yaml" -o -name "*.properties" -o -name "*.xml" -o -name "*.sql" -o -name "Dockerfile" -o -name "*.md" -o -name "*.js" -o -name "*.jsx" -o -name "*.ts" -o -name "*.tsx" -o -name "*.css" -o -name "*.scss" -o -name "*.json" -o -name "*.html" \) | grep -v target/ | grep -v .git/ | grep -v node_modules/ | grep -v build/ | grep -v dist/ | grep -v backup | grep -v "\.bak" | grep -v "\.backup" | grep -v "~$" | sort >> "$output_file"
+    echo "\`\`\`" >> "$output_file"
+    echo "" >> "$output_file"
+    
+    # Tree-Struktur
+    echo "## Tree Structure" >> "$output_file"
+    echo "\`\`\`" >> "$output_file"
+    if command -v tree >/dev/null 2>&1; then
+        tree -I 'target|.git|*.class|*.jar|node_modules|build|dist|backup*|*.bak|*.backup|*~' >> "$output_file"
+    else
+        echo "tree command not available - using find alternative:" >> "$output_file"
+        find . -type d | grep -v target/ | grep -v .git/ | grep -v node_modules/ | grep -v build/ | grep -v dist/ | grep -v backup | sort | sed 's/[^/]*\//|  /g; s/|  \([^|]\)/+--\1/' >> "$output_file"
+    fi
+    echo "\`\`\`" >> "$output_file"
+    echo "" >> "$output_file"
+    
+    # Source Code Files
+    echo "## Source Code Files" >> "$output_file"
+    echo "" >> "$output_file"
+    
+    # Java Files
+    find . -name "*.java" | grep -v target/ | grep -v backup | grep -v "\.bak" | grep -v "\.backup" | grep -v "~$" | sort | while read file; do
+        echo "### File: $file" >> "$output_file"
+        echo "\`\`\`java" >> "$output_file"
+        cat "$file" >> "$output_file"
+        echo "" >> "$output_file"
+        echo "\`\`\`" >> "$output_file"
+        echo "" >> "$output_file"
+    done
+    
+    # JavaScript/TypeScript Files
+    find . \( -name "*.js" -o -name "*.jsx" -o -name "*.ts" -o -name "*.tsx" \) | grep -v target/ | grep -v node_modules/ | grep -v build/ | grep -v dist/ | grep -v backup | grep -v "\.bak" | grep -v "\.backup" | grep -v "~$" | sort | while read file; do
+        # Dateiendung für Syntax-Highlighting ermitteln
+        ext=$(echo "$file" | sed 's/.*\.//')
+        case $ext in
+            js|jsx) syntax="javascript" ;;
+            ts|tsx) syntax="typescript" ;;
+            *) syntax="javascript" ;;
+        esac
+        
+        echo "### File: $file" >> "$output_file"
+        echo "\`\`\`$syntax" >> "$output_file"
+        cat "$file" >> "$output_file"
+        echo "" >> "$output_file"
+        echo "\`\`\`" >> "$output_file"
+        echo "" >> "$output_file"
+    done
+    
+    # CSS/SCSS Files
+    find . \( -name "*.css" -o -name "*.scss" \) | grep -v target/ | grep -v node_modules/ | grep -v build/ | grep -v dist/ | grep -v backup | grep -v "\.bak" | grep -v "\.backup" | grep -v "~$" | sort | while read file; do
+        echo "### File: $file" >> "$output_file"
+        echo "\`\`\`css" >> "$output_file"
+        cat "$file" >> "$output_file"
+        echo "" >> "$output_file"
+        echo "\`\`\`" >> "$output_file"
+        echo "" >> "$output_file"
+    done
+    
+    # HTML Files
+    find . -name "*.html" | grep -v target/ | grep -v node_modules/ | grep -v build/ | grep -v dist/ | grep -v backup | grep -v "\.bak" | grep -v "\.backup" | grep -v "~$" | sort | while read file; do
+        echo "### File: $file" >> "$output_file"
+        echo "\`\`\`html" >> "$output_file"
+        cat "$file" >> "$output_file"
+        echo "" >> "$output_file"
+        echo "\`\`\`" >> "$output_file"
+        echo "" >> "$output_file"
+    done
+    
+    # JSON Files (package.json, etc.)
+    find . -name "*.json" | grep -v target/ | grep -v node_modules/ | grep -v build/ | grep -v dist/ | grep -v backup | grep -v "\.bak" | grep -v "\.backup" | grep -v "~$" | sort | while read file; do
+        echo "### File: $file" >> "$output_file"
+        echo "\`\`\`json" >> "$output_file"
+        cat "$file" >> "$output_file"
+        echo "" >> "$output_file"
+        echo "\`\`\`" >> "$output_file"
+        echo "" >> "$output_file"
+    done
+    
+    # Configuration Files
+    for ext in yml yaml properties; do
+        find . -name "*.$ext" | grep -v target/ | grep -v node_modules/ | grep -v build/ | grep -v dist/ | grep -v backup | grep -v "\.bak" | grep -v "\.backup" | grep -v "~$" | sort | while read file; do
+            echo "### File: $file" >> "$output_file"
+            echo "\`\`\`$ext" >> "$output_file"
+            cat "$file" >> "$output_file"
+            echo "" >> "$output_file"
+            echo "\`\`\`" >> "$output_file"
+            echo "" >> "$output_file"
+        done
+    done
+    
+    # XML Files
+    find . -name "*.xml" | grep -v target/ | grep -v node_modules/ | grep -v build/ | grep -v dist/ | grep -v backup | grep -v "\.bak" | grep -v "\.backup" | grep -v "~$" | sort | while read file; do
+        echo "### File: $file" >> "$output_file"
+        echo "\`\`\`xml" >> "$output_file"
+        cat "$file" >> "$output_file"
+        echo "" >> "$output_file"
+        echo "\`\`\`" >> "$output_file"
+        echo "" >> "$output_file"
+    done
+    
+    # SQL Files
+    find . -name "*.sql" | grep -v target/ | grep -v node_modules/ | grep -v build/ | grep -v dist/ | grep -v backup | grep -v "\.bak" | grep -v "\.backup" | grep -v "~$" | sort | while read file; do
+        echo "### File: $file" >> "$output_file"
+        echo "\`\`\`sql" >> "$output_file"
+        cat "$file" >> "$output_file"
+        echo "" >> "$output_file"
+        echo "\`\`\`" >> "$output_file"
+        echo "" >> "$output_file"
+    done
+    
+    # Dockerfile
+    if [ -f "Dockerfile" ] && ! echo "Dockerfile" | grep -q -E "(backup|\.bak|\.backup|~$)"; then
+        echo "### File: ./Dockerfile" >> "$output_file"
+        echo "\`\`\`dockerfile" >> "$output_file"
+        cat Dockerfile >> "$output_file"
+        echo "" >> "$output_file"
+        echo "\`\`\`" >> "$output_file"
+        echo "" >> "$output_file"
+    fi
+    
+    # Markdown Files
+    find . -name "*.md" | grep -v target/ | grep -v node_modules/ | grep -v build/ | grep -v dist/ | grep -v backup | grep -v "\.bak" | grep -v "\.backup" | grep -v "~$" | sort | while read file; do
+        echo "### File: $file" >> "$output_file"
+        echo "\`\`\`markdown" >> "$output_file"
+        cat "$file" >> "$output_file"
+        echo "" >> "$output_file"
+        echo "\`\`\`" >> "$output_file"
+        echo "" >> "$output_file"
+    done
+    
+    # File in Sources Verzeichnis kopieren
+    cp "$output_file" "../Sources/"
+    
+    # Zurück zum Root-Verzeichnis
+    cd ..
+    
+    echo "${service_name} extraction completed: Sources/${output_file}"
+}
+
+# Root Directory Files extrahieren
+extract_root_files() {
+    echo "Extracting Root Directory files..."
+    
+    local output_file="his-project-root-source.txt"
+    
+    # Output-File erstellen
+    echo "# HIS Project Root - Configuration and Infrastructure Files" > "$output_file"
+    echo "Generated: $(date)" >> "$output_file"
+    echo "Project: Hospital Information System (HIS) - Root Directory" >> "$output_file"
+    echo "=========================================================" >> "$output_file"
+    echo "" >> "$output_file"
+    
+    # Root Directory Structure
+    echo "## Root Directory Structure" >> "$output_file"
+    echo "\`\`\`" >> "$output_file"
+    find . -maxdepth 2 -type f \( -name "*.yml" -o -name "*.yaml" -o -name "*.md" -o -name "*.txt" -o -name "*.json" -o -name "*.xml" -o -name "*.properties" -o -name "Dockerfile" -o -name "*.sh" \) | grep -v backup | grep -v "\.bak" | grep -v "\.backup" | grep -v "~$" | grep -v "/target/" | grep -v "/node_modules/" | grep -v "/build/" | grep -v "/dist/" | grep -v "Sources/" | sort >> "$output_file"
+    echo "\`\`\`" >> "$output_file"
+    echo "" >> "$output_file"
+    
+    # Services Overview
+    echo "## Available Services" >> "$output_file"
+    echo "\`\`\`" >> "$output_file"
+    ls -la | grep "^d" | grep -E "(his-|init-)" >> "$output_file"
+    echo "\`\`\`" >> "$output_file"
+    echo "" >> "$output_file"
+    
+    # Root Configuration Files
+    echo "## Root Configuration Files" >> "$output_file"
+    echo "" >> "$output_file"
+    
+    # Docker Compose Files
+    for file in docker-compose*.yml docker-compose*.yaml; do
+        if [ -f "$file" ] && ! echo "$file" | grep -q -E "(backup|\.bak|\.backup|~$)"; then
+            echo "### File: ./$file" >> "$output_file"
+            echo "\`\`\`yaml" >> "$output_file"
+            cat "$file" >> "$output_file"
+            echo "" >> "$output_file"
+            echo "\`\`\`" >> "$output_file"
+            echo "" >> "$output_file"
+        fi
+    done
+    
+    # README Files
+    for file in README*.md readme*.md; do
+        if [ -f "$file" ] && ! echo "$file" | grep -q -E "(backup|\.bak|\.backup|~$)"; then
+            echo "### File: ./$file" >> "$output_file"
+            echo "\`\`\`markdown" >> "$output_file"
+            cat "$file" >> "$output_file"
+            echo "" >> "$output_file"
+            echo "\`\`\`" >> "$output_file"
+            echo "" >> "$output_file"
+        fi
+    done
+    
+    # Other Configuration Files
+    for file in *.json *.xml *.properties *.txt; do
+        if [ -f "$file" ] && ! echo "$file" | grep -q -E "(backup|\.bak|\.backup|~$)" && ! echo "$file" | grep -q "source\.txt$"; then
+            echo "### File: ./$file" >> "$output_file"
+            echo "\`\`\`" >> "$output_file"
+            cat "$file" >> "$output_file"
+            echo "" >> "$output_file"
+            echo "\`\`\`" >> "$output_file"
+            echo "" >> "$output_file"
+        fi
+    done
+    
+    # Shell Scripts
+    for file in *.sh; do
+        if [ -f "$file" ] && ! echo "$file" | grep -q -E "(backup|\.bak|\.backup|~$)"; then
+            echo "### File: ./$file" >> "$output_file"
+            echo "\`\`\`bash" >> "$output_file"
+            cat "$file" >> "$output_file"
+            echo "" >> "$output_file"
+            echo "\`\`\`" >> "$output_file"
+            echo "" >> "$output_file"
+        fi
+    done
+    
+    # File in Sources Verzeichnis kopieren
+    cp "$output_file" "Sources/"
+    
+    echo "Root directory extraction completed: Sources/$output_file"
+}
+
+# Hauptausführung
+echo "Starting HIS Project Source Code Extraction..."
+echo "=============================================="
+
+# Root Files extrahieren
+extract_root_files
+
+# Init Scripts als separater Service extrahieren
+if [ -d "init-scripts" ]; then
+    extract_service "Init Scripts" "init-scripts"
+else
+    echo "Warning: init-scripts directory not found"
+fi
+
+# Backend Services extrahieren
+if [ -d "his-encounter-service" ]; then
+    extract_service "Encounter Service" "his-encounter-service"
+else
+    echo "Warning: his-encounter-service directory not found"
+fi
+
+if [ -d "his-patient-service" ]; then
+    extract_service "Patient Service" "his-patient-service"
+else
+    echo "Warning: his-patient-service directory not found"
+fi
+
+if [ -d "his-api-gateway" ]; then
+    extract_service "API Gateway" "his-api-gateway"
+else
+    echo "Warning: his-api-gateway directory not found"
+fi
+
+# React Frontend extrahieren
+if [ -d "his-frontend" ]; then
+    extract_service "React Frontend" "his-frontend"
+else
+    echo "Warning: his-frontend directory not found"
+fi
+
+# Zusammenfassung erstellen
+echo ""
+echo "Creating extraction summary..."
+summary_file="Sources/00-extraction-summary.txt"
+echo "HIS Project Source Code Extraction Summary" > "$summary_file"
+echo "Generated: $(date)" >> "$summary_file"
+echo "==========================================" >> "$summary_file"
+echo "" >> "$summary_file"
+echo "Extracted Files:" >> "$summary_file"
+ls -la Sources/ >> "$summary_file"
+echo "" >> "$summary_file"
+echo "File Sizes:" >> "$summary_file"
+du -h Sources/* >> "$summary_file"
+
+echo ""
+echo "=============================================="
+echo "Extraction Summary:"
+echo "- All files are now available in: ./Sources/"
+echo "- Root Directory: Sources/his-project-root-source.txt"
+if [ -d "init-scripts" ]; then
+    echo "- Init Scripts: Sources/Init Scripts-source.txt"
+fi
+if [ -d "his-encounter-service" ]; then
+    echo "- Encounter Service: Sources/Encounter Service-source.txt"
+fi
+if [ -d "his-patient-service" ]; then
+    echo "- Patient Service: Sources/Patient Service-source.txt"
+fi
+if [ -d "his-api-gateway" ]; then
+    echo "- API Gateway: Sources/API Gateway-source.txt"
+fi
+if [ -d "his-frontend" ]; then
+    echo "- React Frontend: Sources/React Frontend-source.txt"
+fi
+echo "- Summary: Sources/00-extraction-summary.txt"
+echo ""
+echo "All source code extractions completed and copied to Sources directory!"
+```
+
+### File: ./frontend_working_solution.sh
+```bash
+#!/bin/bash
+
+# Frontend Working Solution - Sofort einsetzbar
+# Alle funktionierenden APIs + Workarounds für nicht funktionierende
+
+AUTH_HEADER="Authorization: Basic $(echo -n 'admin:dev-password' | base64)"
+
+echo "🚀 Frontend Working Solution - Sofort einsetzbar"
+echo "================================================"
+
+# =================================================================
+# 1. WORKING PATIENT CREATION (für Frontend Forms)
+# =================================================================
+
+echo ""
+echo "1️⃣ Working Patient Creation APIs"
+echo "--------------------------------"
+
+# Generiere gültige KVNR (1 Buchstabe + 9 Ziffern)
+generate_valid_kvnr() {
+    local prefix=$1
+    printf "${prefix}%09d" $(($(date +%s) % 1000000000))
+}
+
+echo "Erstelle realistische Testpatienten für Frontend-Entwicklung:"
+
+# Frontend Test Patient 1 (Male, GKV)
+MALE_KVNR=$(generate_valid_kvnr "M")
+echo ""
+echo "Creating Male Patient (für Frontend PatientForm):"
+MALE_PATIENT=$(curl -s -X POST http://localhost:8080/api/v1/patients \
+  -H "Content-Type: application/json" \
+  -H "$AUTH_HEADER" \
+  -d "{
+    \"firstName\": \"Max\",
+    \"lastName\": \"Frontend\",
+    \"title\": \"Herr\",
+    \"birthDate\": \"1985-07-15\",
+    \"gender\": \"MALE\",
+    \"kvnr\": \"$MALE_KVNR\",
+    \"insuranceType\": \"STATUTORY\",
+    \"insuranceCompanyName\": \"AOK Bayern\",
+    \"phone\": \"+49 89 12345678\",
+    \"email\": \"max.frontend@test.com\",
+    \"consentCommunication\": true,
+    \"consentDataProcessing\": true
+  }")
+
+MALE_ID=$(echo "$MALE_PATIENT" | jq -r '.id')
+echo "✅ Male Patient ID: $MALE_ID"
+echo "   Name: $(echo "$MALE_PATIENT" | jq -r '.firstName + " " + .lastName')"
+echo "   KVNR: $(echo "$MALE_PATIENT" | jq -r '.kvnr')"
+
+# Frontend Test Patient 2 (Female, PKV)
+FEMALE_KVNR=$(generate_valid_kvnr "A")
+echo ""
+echo "Creating Female Patient (für Frontend PatientForm):"
+FEMALE_PATIENT=$(curl -s -X POST http://localhost:8080/api/v1/patients \
+  -H "Content-Type: application/json" \
+  -H "$AUTH_HEADER" \
+  -d "{
+    \"firstName\": \"Anna\",
+    \"lastName\": \"Frontend\",
+    \"title\": \"Dr.\",
+    \"birthDate\": \"1992-03-22\",
+    \"gender\": \"FEMALE\",
+    \"kvnr\": \"$FEMALE_KVNR\",
+    \"insuranceType\": \"PRIVATE\",
+    \"insuranceCompanyName\": \"Debeka\",
+    \"phone\": \"+49 30 98765432\",
+    \"email\": \"dr.anna.frontend@test.com\",
+    \"consentCommunication\": true,
+    \"consentDataProcessing\": false
+  }")
+
+FEMALE_ID=$(echo "$FEMALE_PATIENT" | jq -r '.id')
+echo "✅ Female Patient ID: $FEMALE_ID"
+echo "   Name: $(echo "$FEMALE_PATIENT" | jq -r '.firstName + " " + .lastName')"
+echo "   KVNR: $(echo "$FEMALE_PATIENT" | jq -r '.kvnr')"
+
+# =================================================================
+# 2. WORKING ENCOUNTER CREATION (für Frontend Forms)
+# =================================================================
+
+echo ""
+echo "2️⃣ Working Encounter Creation APIs"
+echo "----------------------------------"
+
+if [ "$MALE_ID" != "null" ]; then
+    echo "Creating Encounters für Frontend EncounterForm:"
+    
+    # Encounter 1: INITIAL
+    PRACTITIONER_1=$(uuidgen | tr '[:upper:]' '[:lower:]')
+    ENCOUNTER_1=$(curl -s -X POST http://localhost:8080/api/v1/encounters \
+      -H "Content-Type: application/json" \
+      -H "$AUTH_HEADER" \
+      -d "{
+        \"patientId\": \"$MALE_ID\",
+        \"practitionerId\": \"$PRACTITIONER_1\",
+        \"type\": \"INITIAL\",
+        \"encounterDate\": \"$(date -u +%Y-%m-%dT%H:%M:%S)\",
+        \"billingContext\": \"GKV\"
+      }")
+    
+    ENCOUNTER_1_ID=$(echo "$ENCOUNTER_1" | jq -r '.id')
+    echo "✅ Encounter 1 (INITIAL): $ENCOUNTER_1_ID"
+    
+    # Encounter 2: CONSULTATION  
+    PRACTITIONER_2=$(uuidgen | tr '[:upper:]' '[:lower:]')
+    ENCOUNTER_2=$(curl -s -X POST http://localhost:8080/api/v1/encounters \
+      -H "Content-Type: application/json" \
+      -H "$AUTH_HEADER" \
+      -d "{
+        \"patientId\": \"$FEMALE_ID\",
+        \"practitionerId\": \"$PRACTITIONER_2\",
+        \"type\": \"CONSULTATION\",
+        \"encounterDate\": \"$(date -u +%Y-%m-%dT%H:%M:%S)\",
+        \"billingContext\": \"PKV\"
+      }")
+    
+    ENCOUNTER_2_ID=$(echo "$ENCOUNTER_2" | jq -r '.id')
+    echo "✅ Encounter 2 (CONSULTATION): $ENCOUNTER_2_ID"
+fi
+
+# =================================================================
+# 3. WORKING ENCOUNTER STATUS UPDATES (für Frontend Actions)
+# =================================================================
+
+echo ""
+echo "3️⃣ Working Encounter Status Updates"
+echo "-----------------------------------"
+
+if [ "$ENCOUNTER_1_ID" != "null" ]; then
+    echo "Testing Encounter Status Updates (React Action Buttons):"
+    
+    # Start Encounter
+    echo "  Starting Encounter: PLANNED → IN_PROGRESS"
+    START_RESULT=$(curl -s -X PUT http://localhost:8080/api/v1/encounters/$ENCOUNTER_1_ID/start \
+      -H "$AUTH_HEADER")
+    echo "  ✅ Status: $(echo "$START_RESULT" | jq -r '.status')"
+    
+    sleep 1
+    
+    # Complete Encounter
+    echo "  Completing Encounter: IN_PROGRESS → COMPLETED"
+    COMPLETE_RESULT=$(curl -s -X PUT http://localhost:8080/api/v1/encounters/$ENCOUNTER_1_ID/complete \
+      -H "$AUTH_HEADER")
+    echo "  ✅ Status: $(echo "$COMPLETE_RESULT" | jq -r '.status')"
+fi
+
+# =================================================================
+# 4. WORKING SINGLE ENCOUNTER GET (für Frontend Detail Views)
+# =================================================================
+
+echo ""
+echo "4️⃣ Working Single Encounter GET"
+echo "-------------------------------"
+
+if [ "$ENCOUNTER_1_ID" != "null" ]; then
+    echo "Testing Single Encounter GET (React EncounterDetail Component):"
+    SINGLE_ENCOUNTER=$(curl -s -H "$AUTH_HEADER" \
+      http://localhost:8080/api/v1/encounters/$ENCOUNTER_1_ID)
+    
+    echo "✅ Single Encounter Response:"
+    echo "$SINGLE_ENCOUNTER" | jq '{
+      id,
+      patientId,
+      type,
+      status,
+      encounterDate,
+      billingContext
+    }'
+fi
+
+# =================================================================
+# 5. WORKING PATIENT ENCOUNTERS (für Frontend Patient Detail)
+# =================================================================
+
+echo ""
+echo "5️⃣ Working Patient Encounters GET"
+echo "---------------------------------"
+
+if [ "$MALE_ID" != "null" ]; then
+    echo "Testing Patient Encounters (React PatientDetail Component):"
+    PATIENT_ENCOUNTERS=$(curl -s -H "$AUTH_HEADER" \
+      http://localhost:8080/api/v1/encounters/patient/$MALE_ID)
+    
+    echo "✅ Patient Encounters Response:"
+    echo "$PATIENT_ENCOUNTERS" | jq '{
+      totalElements,
+      totalPages,
+      size,
+      content: .content | map({
+        id,
+        type,
+        status,
+        encounterDate,
+        documentationCount
+      })
+    }'
+fi
+
+# =================================================================
+# 6. FRONTEND DASHBOARD WORKAROUND (Client-side Aggregation)
+# =================================================================
+
+echo ""
+echo "6️⃣ Frontend Dashboard Workaround"
+echo "--------------------------------"
+
+echo "Da Patient List API nicht funktioniert, erstellen wir eine Alternative:"
+
+# Sammle alle erstellten Patienten-IDs
+KNOWN_PATIENT_IDS=("$MALE_ID" "$FEMALE_ID")
+
+echo "Frontend Dashboard Daten (aus bekannten Patienten):"
+
+DASHBOARD_DATA="{"
+TOTAL_PATIENTS=0
+TOTAL_ENCOUNTERS=0
+ALL_ENCOUNTERS="[]"
+
+for patient_id in "${KNOWN_PATIENT_IDS[@]}"; do
+    if [ "$patient_id" != "null" ] && [ -n "$patient_id" ]; then
+        TOTAL_PATIENTS=$((TOTAL_PATIENTS + 1))
+        
+        # Lade Encounters für diesen Patient
+        PATIENT_ENC=$(curl -s -H "$AUTH_HEADER" \
+          http://localhost:8080/api/v1/encounters/patient/$patient_id)
+        
+        PATIENT_ENC_COUNT=$(echo "$PATIENT_ENC" | jq '.totalElements // 0')
+        TOTAL_ENCOUNTERS=$((TOTAL_ENCOUNTERS + PATIENT_ENC_COUNT))
+        
+        # Füge Encounters zur Gesamtliste hinzu
+        ALL_ENCOUNTERS=$(echo "$ALL_ENCOUNTERS" "$PATIENT_ENC" | jq -s '.[0] + (.[1].content // [])')
+    fi
+done
+
+echo "✅ Dashboard Statistiken (Client-side aggregiert):"
+echo "   Total Patients: $TOTAL_PATIENTS"
+echo "   Total Encounters: $TOTAL_ENCOUNTERS"
+
+echo ""
+echo "✅ Encounter Status Distribution:"
+echo "$ALL_ENCOUNTERS" | jq 'group_by(.status) | map({status: .[0].status, count: length})'
+
+echo ""
+echo "✅ Encounter Type Distribution:"
+echo "$ALL_ENCOUNTERS" | jq 'group_by(.type) | map({type: .[0].type, count: length})'
+
+# =================================================================
+# 7. REACT FRONTEND INTEGRATION CODE
+# =================================================================
+
+echo ""
+echo "7️⃣ React Frontend Integration Code"
+echo "----------------------------------"
+
+cat << 'EOF'
+// React Frontend API Integration (funktioniert sofort)
+
+const API_BASE = 'http://localhost:8080/api/v1';
+const AUTH_HEADER = 'Basic ' + btoa('admin:dev-password');
+
+// ✅ WORKING: Patient Creation (PatientForm)
+const createPatient = async (patientData) => {
+  const response = await fetch(`${API_BASE}/patients`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': AUTH_HEADER
+    },
+    body: JSON.stringify(patientData)
+  });
+  return response.json();
+};
+
+// ✅ WORKING: Encounter Creation (EncounterForm)
+const createEncounter = async (encounterData) => {
+  const response = await fetch(`${API_BASE}/encounters`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': AUTH_HEADER
+    },
+    body: JSON.stringify(encounterData)
+  });
+  return response.json();
+};
+
+// ✅ WORKING: Single Encounter (EncounterDetail)
+const getEncounter = async (encounterId) => {
+  const response = await fetch(`${API_BASE}/encounters/${encounterId}`, {
+    headers: { 'Authorization': AUTH_HEADER }
+  });
+  return response.json();
+};
+
+// ✅ WORKING: Patient Encounters (PatientDetail)
+const getPatientEncounters = async (patientId) => {
+  const response = await fetch(`${API_BASE}/encounters/patient/${patientId}`, {
+    headers: { 'Authorization': AUTH_HEADER }
+  });
+  return response.json();
+};
+
+// ✅ WORKING: Encounter Status Updates (Action Buttons)
+const startEncounter = async (encounterId) => {
+  const response = await fetch(`${API_BASE}/encounters/${encounterId}/start`, {
+    method: 'PUT',
+    headers: { 'Authorization': AUTH_HEADER }
+  });
+  return response.json();
+};
+
+const completeEncounter = async (encounterId) => {
+  const response = await fetch(`${API_BASE}/encounters/${encounterId}/complete`, {
+    method: 'PUT',
+    headers: { 'Authorization': AUTH_HEADER }
+  });
+  return response.json();
+};
+
+// 🔧 WORKAROUND: Dashboard Statistics (Client-side)
+const getDashboardStats = async () => {
+  // Da Patient List nicht funktioniert, verwenden Sie bekannte Patient-IDs
+  const knownPatientIds = ['patient-id-1', 'patient-id-2']; // Aus localStorage oder State
+  
+  let totalEncounters = 0;
+  const allEncounters = [];
+  
+  for (const patientId of knownPatientIds) {
+    const patientEncounters = await getPatientEncounters(patientId);
+    totalEncounters += patientEncounters.totalElements;
+    allEncounters.push(...patientEncounters.content);
+  }
+  
+  return {
+    totalPatients: knownPatientIds.length,
+    totalEncounters,
+    encountersByStatus: allEncounters.reduce((acc, enc) => {
+      acc[enc.status] = (acc[enc.status] || 0) + 1;
+      return acc;
+    }, {}),
+    encountersByType: allEncounters.reduce((acc, enc) => {
+      acc[enc.type] = (acc[enc.type] || 0) + 1;
+      return acc;
+    }, {})
+  };
+};
+
+EOF
+
+# =================================================================
+# FRONTEND READY SUMMARY
+# =================================================================
+
+echo ""
+echo "=================================================="
+echo "🎉 FRONTEND READY - SOFORT EINSETZBAR!"
+echo "=================================================="
+echo ""
+echo "✅ FUNKTIONIERT SOFORT:"
+echo "  • Patient Creation Forms ✓"
+echo "  • Encounter Creation Forms ✓"
+echo "  • Encounter Detail Views ✓"
+echo "  • Patient Detail Views (mit Encounters) ✓"
+echo "  • Encounter Status Updates (Start/Complete) ✓"
+echo "  • Dashboard (mit Client-side Aggregation) ✓"
+echo ""
+echo "❌ EINZIGES PROBLEM:"
+echo "  • Patient List/Search API (HTTP 500)"
+echo "  • Workaround: Verwenden Sie bekannte Patient-IDs"
+echo ""
+echo "🚀 FRONTEND KANN SOFORT ENTWICKELT WERDEN:"
+echo "  • Alle CRUD-Operationen funktionieren"
+echo "  • Alle Status-Updates funktionieren"
+echo "  • Dashboard-Daten können aggregiert werden"
+echo ""
+echo "📋 PATIENT-IDs FÜR TESTS:"
+echo "  • Male Patient: $MALE_ID"
+echo "  • Female Patient: $FEMALE_ID"
+echo ""
+echo "🔧 NEXT STEPS:"
+echo "  1. Frontend mit funktionierenden APIs entwickeln"
+echo "  2. Patient List Problem separat lösen"
+echo "  3. Dann Patient List in Frontend integrieren"
+```
+
+### File: ./his_curl_testdata.sh
+```bash
+# HIS Testdaten - Projektkonform
+# Basierend auf der tatsächlichen API-Struktur aus dem Projektwissen
+
+# ===== PATIENT TESTDATEN =====
+
+# 1. Standardpatient (GKV) - Max Mustermann
+echo "🏥 Erstelle Patient: Max Mustermann"
+curl -s -X POST http://localhost:8080/api/v1/patients \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Basic $(echo -n 'admin:dev-password' | base64)" \
+  -d '{
+    "firstName": "Max",
+    "lastName": "Mustermann", 
+    "birthDate": "1990-07-15",
+    "gender": "MALE",
+    "kvnr": "M123456780",
+    "insuranceNumber": "A123456780",
+    "insuranceType": "STATUTORY",
+    "insuranceCompanyId": "104212059",
+    "insuranceCompanyName": "AOK Bayern",
+    "phone": "+49 89 12345678",
+    "email": "max.mustermann@example.com",
+    "consentCommunication": true,
+    "consentDataProcessing": true
+  }' | jq '{id, firstName, lastName, birthDate, gender, kvnr, insuranceType}'
+
+# 2. Weibliche Patientin (PKV) - Dr. Anna Schmidt  
+echo "🏥 Erstelle Patientin: Dr. Anna Schmidt"
+curl -s -X POST http://localhost:8080/api/v1/patients \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Basic $(echo -n 'admin:dev-password' | base64)" \
+  -d '{
+    "firstName": "Anna",
+    "lastName": "Schmidt",
+    "title": "Dr.",
+    "birthDate": "1985-03-22",
+    "gender": "FEMALE", 
+    "kvnr": "A198503221",
+    "insuranceNumber": "PKV-198503221",
+    "insuranceType": "PRIVATE",
+    "insuranceCompanyName": "Debeka Krankenversicherung",
+    "phone": "+49 30 98765432",
+    "email": "dr.anna.schmidt@example.com",
+    "consentCommunication": true,
+    "consentDataProcessing": false
+  }' | jq '{id, firstName, lastName, title, birthDate, gender, kvnr, insuranceType}'
+
+# 3. Pädiatrischer Patient - Tim Weber (minderjährig)
+echo "🏥 Erstelle Patient: Tim Weber (minderjährig)"
+curl -s -X POST http://localhost:8080/api/v1/patients \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Basic $(echo -n 'admin:dev-password' | base64)" \
+  -d '{
+    "firstName": "Tim",
+    "lastName": "Weber",
+    "birthDate": "2015-11-08", 
+    "gender": "MALE",
+    "kvnr": "T201511083",
+    "insuranceNumber": "T201511083",
+    "insuranceType": "STATUTORY",
+    "insuranceCompanyName": "Techniker Krankenkasse",
+    "phone": "+49 40 11223344",
+    "email": "familie.weber@example.com",
+    "consentCommunication": true,
+    "consentDataProcessing": true
+  }' | jq '{id, firstName, lastName, birthDate, gender, kvnr, age: ((now | strftime("%Y") | tonumber) - (.birthDate | split("-")[0] | tonumber))}'
+
+# 4. Senior Patient - Gertrud Müller (65+)
+echo "🏥 Erstelle Patientin: Gertrud Müller (65+)"
+curl -s -X POST http://localhost:8080/api/v1/patients \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Basic $(echo -n 'admin:dev-password' | base64)" \
+  -d '{
+    "firstName": "Gertrud",
+    "lastName": "Müller",
+    "birthDate": "1950-12-03",
+    "gender": "FEMALE",
+    "kvnr": "G195012034", 
+    "insuranceNumber": "G195012034",
+    "insuranceType": "STATUTORY",
+    "insuranceCompanyName": "Barmer",
+    "phone": "+49 221 55443322",
+    "email": "gertrud.mueller@example.com",
+    "consentCommunication": false,
+    "consentDataProcessing": true
+  }' | jq '{id, firstName, lastName, birthDate, gender, kvnr, insuranceType}'
+
+# 5. Patient mit komplexeren Daten - Prof. Dr. Hans Zimmerman
+echo "🏥 Erstelle Patient: Prof. Dr. Hans Zimmerman"
+curl -s -X POST http://localhost:8080/api/v1/patients \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Basic $(echo -n 'admin:dev-password' | base64)" \
+  -d '{
+    "firstName": "Hans",
+    "lastName": "Zimmerman", 
+    "title": "Prof. Dr.",
+    "birthDate": "1975-09-12",
+    "gender": "MALE",
+    "kvnr": "H197509125",
+    "insuranceNumber": "PKV-H197509125",
+    "insuranceType": "PRIVATE",
+    "insuranceCompanyId": "168141347",
+    "insuranceCompanyName": "DKV Deutsche Krankenversicherung",
+    "phone": "+49 69 87654321",
+    "email": "prof.zimmerman@uni-frankfurt.de",
+    "consentCommunication": true,
+    "consentDataProcessing": true
+  }' | jq '{id, firstName, lastName, title, birthDate, gender, kvnr, insuranceType}'
+
+# ===== SYSTEM VALIDIERUNG =====
+
+echo ""
+echo "🔍 System-Validierung:"
+
+# Alle Patienten abrufen
+echo "📋 Alle erstellten Patienten:"
+curl -s http://localhost:8080/api/v1/patients | jq '.[] | {id, firstName, lastName, kvnr, insuranceType}'
+
+# Health Check
+echo ""
+echo "🏥 System Health:"
+curl -s http://localhost:8080/actuator/health | jq
+
+echo ""
+echo "✅ Testdaten erfolgreich erstellt!"
+echo "🌐 Frontend testen: http://localhost:3000"
+echo "📊 API Docs: http://localhost:8080/swagger-ui.html"
+
+# ===== KVNR VALIDIERUNG TESTS =====
+
+echo ""
+echo "🧪 KVNR-Validierung Tests:"
+
+# Test: Ungültige KVNR (zu kurz)
+echo "❌ Test: Ungültige KVNR (zu kurz)"
+curl -s -X POST http://localhost:8080/api/v1/patients \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Basic $(echo -n 'admin:dev-password' | base64)" \
+  -d '{
+    "firstName": "Test",
+    "lastName": "Invalid",
+    "birthDate": "1990-01-01", 
+    "gender": "MALE",
+    "kvnr": "ABC123"
+  }' | jq '.message // .error // "Validation failed as expected"'
+
+# Test: KVNR mit verbotenem Buchstaben 'O'
+echo "❌ Test: KVNR mit verbotenem Buchstaben O"
+curl -s -X POST http://localhost:8080/api/v1/patients \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Basic $(echo -n 'admin:dev-password' | base64)" \
+  -d '{
+    "firstName": "Test",
+    "lastName": "InvalidO",
+    "birthDate": "1990-01-01",
+    "gender": "MALE", 
+    "kvnr": "O123456789"
+  }' | jq '.message // .error // "Validation failed as expected"'
+
+# Test: Fehlende Pflichtfelder
+echo "❌ Test: Fehlende Pflichtfelder"
+curl -s -X POST http://localhost:8080/api/v1/patients \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Basic $(echo -n 'admin:dev-password' | base64)" \
+  -d '{
+    "firstName": "Test"
+  }' | jq '.message // .error // "Validation failed as expected"'
+
+# ===== ENCOUNTER TESTDATEN (wenn Patient IDs vorhanden) =====
+
+echo ""
+echo "📋 Encounter-Testdaten erstellen..."
+
+# Erste Patient-ID für Encounter-Tests abrufen
+PATIENT_ID=$(curl -s http://localhost:8080/api/v1/patients | jq -r '.[0].id // empty')
+
+if [ ! -z "$PATIENT_ID" ]; then
+    echo "🏥 Erstelle Encounter für Patient: $PATIENT_ID"
+    curl -s -X POST http://localhost:8080/api/v1/encounters \
+      -H "Content-Type: application/json" \
+      -H "Authorization: Basic $(echo -n 'admin:dev-password' | base64)" \
+      -d "{
+        \"patientId\": \"$PATIENT_ID\",
+        \"practitionerId\": \"$(uuidgen)\",
+        \"type\": \"INITIAL\",
+        \"encounterDate\": \"$(date -u +%Y-%m-%dT%H:%M:%S)\",
+        \"billingContext\": \"GKV\",
+        \"notes\": \"Erstuntersuchung - Testdaten\"
+      }" | jq '{id, patientId, type, encounterDate, status}'
+else
+    echo "⚠️ Keine Patienten gefunden - Encounter nicht erstellt"
+fi
+
+echo ""
+echo "🎯 Testdaten-Setup abgeschlossen!"
+echo "🚀 Frontend starten: npm start (in his-frontend/)"
+echo "📊 Backend läuft auf: http://localhost:8080"
 ```
 
 ### File: ./setup-elk.sh

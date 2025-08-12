@@ -1,4 +1,4 @@
-# In das Projekt-Root-Verzeichnis wechseln (wo his-encounter-service/, his-patient-service/, his-api-gateway/, his-frontend/ liegen)
+# In das Projekt-Root-Verzeichnis wechseln (wo his-encounter-service/, his-patient-service/, his-api-gateway/ liegen)
 cd his-project  # oder wie auch immer dein Root-Verzeichnis heißt
 
 # Sources Verzeichnis erstellen/leeren
@@ -30,7 +30,7 @@ extract_service() {
     # Verzeichnisstruktur anzeigen (ohne Backups)
     echo "## Directory Structure" >> "$output_file"
     echo "\`\`\`" >> "$output_file"
-    find . -type f \( -name "*.java" -o -name "*.yml" -o -name "*.yaml" -o -name "*.properties" -o -name "*.xml" -o -name "*.sql" -o -name "Dockerfile" -o -name "*.md" -o -name "*.js" -o -name "*.jsx" -o -name "*.ts" -o -name "*.tsx" -o -name "*.css" -o -name "*.scss" -o -name "*.json" -o -name "*.html" \) | grep -v target/ | grep -v .git/ | grep -v node_modules/ | grep -v build/ | grep -v dist/ | grep -v backup | grep -v "\.bak" | grep -v "\.backup" | grep -v "~$" | sort >> "$output_file"
+    find . -type f -name "*.java" -o -name "*.yml" -o -name "*.yaml" -o -name "*.properties" -o -name "*.xml" -o -name "*.sql" -o -name "Dockerfile" -o -name "*.md" | grep -v target/ | grep -v .git/ | grep -v backup | grep -v "\.bak" | grep -v "\.backup" | grep -v "~$" | sort >> "$output_file"
     echo "\`\`\`" >> "$output_file"
     echo "" >> "$output_file"
     
@@ -38,10 +38,10 @@ extract_service() {
     echo "## Tree Structure" >> "$output_file"
     echo "\`\`\`" >> "$output_file"
     if command -v tree >/dev/null 2>&1; then
-        tree -I 'target|.git|*.class|*.jar|node_modules|build|dist|backup*|*.bak|*.backup|*~' >> "$output_file"
+        tree -I 'target|.git|*.class|*.jar|backup*|*.bak|*.backup|*~' >> "$output_file"
     else
         echo "tree command not available - using find alternative:" >> "$output_file"
-        find . -type d | grep -v target/ | grep -v .git/ | grep -v node_modules/ | grep -v build/ | grep -v dist/ | grep -v backup | sort | sed 's/[^/]*\//|  /g; s/|  \([^|]\)/+--\1/' >> "$output_file"
+        find . -type d | grep -v target/ | grep -v .git/ | grep -v backup | sort | sed 's/[^/]*\//|  /g; s/|  \([^|]\)/+--\1/' >> "$output_file"
     fi
     echo "\`\`\`" >> "$output_file"
     echo "" >> "$output_file"
@@ -60,57 +60,9 @@ extract_service() {
         echo "" >> "$output_file"
     done
     
-    # JavaScript/TypeScript Files
-    find . \( -name "*.js" -o -name "*.jsx" -o -name "*.ts" -o -name "*.tsx" \) | grep -v target/ | grep -v node_modules/ | grep -v build/ | grep -v dist/ | grep -v backup | grep -v "\.bak" | grep -v "\.backup" | grep -v "~$" | sort | while read file; do
-        # Dateiendung für Syntax-Highlighting ermitteln
-        ext=$(echo "$file" | sed 's/.*\.//')
-        case $ext in
-            js|jsx) syntax="javascript" ;;
-            ts|tsx) syntax="typescript" ;;
-            *) syntax="javascript" ;;
-        esac
-        
-        echo "### File: $file" >> "$output_file"
-        echo "\`\`\`$syntax" >> "$output_file"
-        cat "$file" >> "$output_file"
-        echo "" >> "$output_file"
-        echo "\`\`\`" >> "$output_file"
-        echo "" >> "$output_file"
-    done
-    
-    # CSS/SCSS Files
-    find . \( -name "*.css" -o -name "*.scss" \) | grep -v target/ | grep -v node_modules/ | grep -v build/ | grep -v dist/ | grep -v backup | grep -v "\.bak" | grep -v "\.backup" | grep -v "~$" | sort | while read file; do
-        echo "### File: $file" >> "$output_file"
-        echo "\`\`\`css" >> "$output_file"
-        cat "$file" >> "$output_file"
-        echo "" >> "$output_file"
-        echo "\`\`\`" >> "$output_file"
-        echo "" >> "$output_file"
-    done
-    
-    # HTML Files
-    find . -name "*.html" | grep -v target/ | grep -v node_modules/ | grep -v build/ | grep -v dist/ | grep -v backup | grep -v "\.bak" | grep -v "\.backup" | grep -v "~$" | sort | while read file; do
-        echo "### File: $file" >> "$output_file"
-        echo "\`\`\`html" >> "$output_file"
-        cat "$file" >> "$output_file"
-        echo "" >> "$output_file"
-        echo "\`\`\`" >> "$output_file"
-        echo "" >> "$output_file"
-    done
-    
-    # JSON Files (package.json, etc.)
-    find . -name "*.json" | grep -v target/ | grep -v node_modules/ | grep -v build/ | grep -v dist/ | grep -v backup | grep -v "\.bak" | grep -v "\.backup" | grep -v "~$" | sort | while read file; do
-        echo "### File: $file" >> "$output_file"
-        echo "\`\`\`json" >> "$output_file"
-        cat "$file" >> "$output_file"
-        echo "" >> "$output_file"
-        echo "\`\`\`" >> "$output_file"
-        echo "" >> "$output_file"
-    done
-    
     # Configuration Files
     for ext in yml yaml properties; do
-        find . -name "*.$ext" | grep -v target/ | grep -v node_modules/ | grep -v build/ | grep -v dist/ | grep -v backup | grep -v "\.bak" | grep -v "\.backup" | grep -v "~$" | sort | while read file; do
+        find . -name "*.$ext" | grep -v target/ | grep -v backup | grep -v "\.bak" | grep -v "\.backup" | grep -v "~$" | sort | while read file; do
             echo "### File: $file" >> "$output_file"
             echo "\`\`\`$ext" >> "$output_file"
             cat "$file" >> "$output_file"
@@ -121,7 +73,7 @@ extract_service() {
     done
     
     # XML Files
-    find . -name "*.xml" | grep -v target/ | grep -v node_modules/ | grep -v build/ | grep -v dist/ | grep -v backup | grep -v "\.bak" | grep -v "\.backup" | grep -v "~$" | sort | while read file; do
+    find . -name "*.xml" | grep -v target/ | grep -v backup | grep -v "\.bak" | grep -v "\.backup" | grep -v "~$" | sort | while read file; do
         echo "### File: $file" >> "$output_file"
         echo "\`\`\`xml" >> "$output_file"
         cat "$file" >> "$output_file"
@@ -131,7 +83,7 @@ extract_service() {
     done
     
     # SQL Files
-    find . -name "*.sql" | grep -v target/ | grep -v node_modules/ | grep -v build/ | grep -v dist/ | grep -v backup | grep -v "\.bak" | grep -v "\.backup" | grep -v "~$" | sort | while read file; do
+    find . -name "*.sql" | grep -v target/ | grep -v backup | grep -v "\.bak" | grep -v "\.backup" | grep -v "~$" | sort | while read file; do
         echo "### File: $file" >> "$output_file"
         echo "\`\`\`sql" >> "$output_file"
         cat "$file" >> "$output_file"
@@ -151,7 +103,7 @@ extract_service() {
     fi
     
     # Markdown Files
-    find . -name "*.md" | grep -v target/ | grep -v node_modules/ | grep -v build/ | grep -v dist/ | grep -v backup | grep -v "\.bak" | grep -v "\.backup" | grep -v "~$" | sort | while read file; do
+    find . -name "*.md" | grep -v target/ | grep -v backup | grep -v "\.bak" | grep -v "\.backup" | grep -v "~$" | sort | while read file; do
         echo "### File: $file" >> "$output_file"
         echo "\`\`\`markdown" >> "$output_file"
         cat "$file" >> "$output_file"
@@ -185,7 +137,7 @@ extract_root_files() {
     # Root Directory Structure
     echo "## Root Directory Structure" >> "$output_file"
     echo "\`\`\`" >> "$output_file"
-    find . -maxdepth 2 -type f \( -name "*.yml" -o -name "*.yaml" -o -name "*.md" -o -name "*.txt" -o -name "*.json" -o -name "*.xml" -o -name "*.properties" -o -name "Dockerfile" -o -name "*.sh" \) | grep -v backup | grep -v "\.bak" | grep -v "\.backup" | grep -v "~$" | grep -v "/target/" | grep -v "/node_modules/" | grep -v "/build/" | grep -v "/dist/" | grep -v "Sources/" | sort >> "$output_file"
+    find . -maxdepth 2 -type f -name "*.yml" -o -name "*.yaml" -o -name "*.md" -o -name "*.txt" -o -name "*.json" -o -name "*.xml" -o -name "*.properties" -o -name "Dockerfile" -o -name "*.sh" | grep -v backup | grep -v "\.bak" | grep -v "\.backup" | grep -v "~$" | grep -v "/target/" | grep -v "Sources/" | sort >> "$output_file"
     echo "\`\`\`" >> "$output_file"
     echo "" >> "$output_file"
     
@@ -268,7 +220,7 @@ else
     echo "Warning: init-scripts directory not found"
 fi
 
-# Backend Services extrahieren
+# Services extrahieren (prüfen ob Verzeichnisse existieren)
 if [ -d "his-encounter-service" ]; then
     extract_service "Encounter Service" "his-encounter-service"
 else
@@ -285,13 +237,6 @@ if [ -d "his-api-gateway" ]; then
     extract_service "API Gateway" "his-api-gateway"
 else
     echo "Warning: his-api-gateway directory not found"
-fi
-
-# React Frontend extrahieren
-if [ -d "his-frontend" ]; then
-    extract_service "React Frontend" "his-frontend"
-else
-    echo "Warning: his-frontend directory not found"
 fi
 
 # Zusammenfassung erstellen
@@ -324,9 +269,6 @@ if [ -d "his-patient-service" ]; then
 fi
 if [ -d "his-api-gateway" ]; then
     echo "- API Gateway: Sources/API Gateway-source.txt"
-fi
-if [ -d "his-frontend" ]; then
-    echo "- React Frontend: Sources/React Frontend-source.txt"
 fi
 echo "- Summary: Sources/00-extraction-summary.txt"
 echo ""

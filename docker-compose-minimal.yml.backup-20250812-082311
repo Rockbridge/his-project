@@ -58,22 +58,16 @@ services:
       SPRING_DATASOURCE_USERNAME: his_user
       SPRING_DATASOURCE_PASSWORD: dev_password
       # JPA Configuration
-      SPRING_JPA_HIBERNATE_DDL_AUTO: none
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
       SPRING_JPA_SHOW_SQL: true
       SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL: true
       SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA: his_patient
-      # LIQUIBASE AKTIVIEREN - HINZUGEFÜGT
-      SPRING_LIQUIBASE_ENABLED: true
-      SPRING_LIQUIBASE_CHANGE_LOG: classpath:db/changelog/db.changelog-master.xml
-      SPRING_LIQUIBASE_DEFAULT_SCHEMA: his_patient
-      SPRING_LIQUIBASE_CONTEXTS: docker,production
       # Profile Configuration
       SPRING_PROFILES_ACTIVE: docker-minimal
       # Logging Configuration
       LOGGING_LEVEL_DE_HIS_PATIENT: DEBUG
       LOGGING_LEVEL_ORG_HIBERNATE_SQL: DEBUG
       LOGGING_LEVEL_ROOT: INFO
-      LOGGING_LEVEL_LIQUIBASE: INFO
       # Application Configuration
       SERVER_PORT: 8081
       MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,metrics
@@ -120,7 +114,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: dev_password
       SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
       # JPA Configuration - KORRIGIERT
-      SPRING_JPA_HIBERNATE_DDL_AUTO: none
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
       SPRING_JPA_SHOW_SQL: true
       SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.PostgreSQLDialect
       SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA: his_encounter
@@ -143,7 +137,6 @@ services:
       LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_CLOUD_OPENFEIGN: DEBUG
       LOGGING_LEVEL_ORG_HIBERNATE_SQL: DEBUG
       LOGGING_LEVEL_ROOT: INFO
-      LOGGING_LEVEL_LIQUIBASE: INFO
       # Application Configuration
       SERVER_PORT: 8082
       MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,metrics
@@ -221,7 +214,6 @@ services:
       # Logging Configuration
       LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_CLOUD_GATEWAY: DEBUG
       LOGGING_LEVEL_ROOT: INFO
-      LOGGING_LEVEL_LIQUIBASE: INFO
       # Application Configuration
       SERVER_PORT: 8080
       MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,metrics,gateway,circuitbreakers

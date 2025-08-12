@@ -1,9 +1,10 @@
-# Liquibase Configuration für Patient Service - KORRIGIERT für lokalen Maven-Zugriff
+# Liquibase Configuration für Patient Service
+# Healthcare IT - HIS Project
 
 # Changelog Location
 changeLogFile=src/main/resources/db/changelog/db.changelog-master.xml
 
-# Database Connection - KORRIGIERT für Port 5432
+# Database Connection - Korrigiert für Docker Setup
 url=jdbc:postgresql://localhost:5432/his_db
 username=his_user
 password=dev_password
@@ -16,8 +17,12 @@ liquibaseSchemaName=his_patient
 # Output Configuration
 outputFile=target/liquibase-output.txt
 logLevel=INFO
+
+# Validation
 validateXMLChangeLog=true
 
 # Context für verschiedene Umgebungen
-contexts=dev,test,prod,docker
+contexts=dev,test,prod
+
+# Labels für Feature-basierte Deployments
 labels=patient-service,healthcare,baseline
