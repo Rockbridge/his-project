@@ -1,5 +1,5 @@
 # HIS React Frontend - Complete Source Code Structure
-Generated: Di 12 Aug 2025 21:35:03 CEST
+Generated: Do 14 Aug 2025 17:19:13 CEST
 Project: Hospital Information System (HIS) - React Frontend
 =========================================================
 
@@ -87,188 +87,433 @@ const HISContext = createContext();
 const HISProvider = ({ children }) => {
   const [patients, setPatients] = useState([]);
   const [encounters, setEncounters] = useState([]);
+  const [selectedPatient, setSelectedPatient] = useState(null);
+  const [selectedEncounters, setSelectedEncounters] = useState([]);
+  const [expandedRows, setExpandedRows] = useState(new Set());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [user, setUser] = useState({ name: "Dr. Mustermann", role: "Arzt" });
-  const [currentPage, setCurrentPage] = useState("dashboard");
-  const [selectedPatient, setSelectedPatient] = useState(null);
+  const [user, setUser] = useState({ name: "Dr. Schmidt", role: "Physician" });
+  const [activeTab, setActiveTab] = useState("patients");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
+  const [showConfigPanel, setShowConfigPanel] = useState(false);
+  const [currentDateTime, setCurrentDateTime] = useState(new Date());
 
-  const contextValue = {
-    patients,
-    setPatients,
-    encounters,
-    setEncounters,
-    loading,
-    setLoading,
-    error,
-    setError,
-    user,
-    setUser,
-    currentPage,
-    setCurrentPage,
-    selectedPatient,
-    setSelectedPatient,
-  };
+  const BASE_URL = "http://localhost:8080/api/v1";
+  const AUTH_HEADER = "Basic " + btoa("admin:dev-password");
 
-  return (
-    <HISContext.Provider value={contextValue}>{children}</HISContext.Provider>
-  );
-};
-
-const useHIS = () => {
-  const context = useContext(HISContext);
-  if (!context) {
-    throw new Error("useHIS must be used within a HISProvider");
-  }
-  return context;
-};
-
-// ===== API SERVICE =====
-class HISApiService {
-  constructor() {
-    this.baseUrl = "http://localhost:8080/api/v1";
-    this.authHeader = "Basic " + btoa("admin:dev-password");
-  }
-
-  async request(endpoint, options = {}) {
-    const url = `${this.baseUrl}${endpoint}`;
-    const config = {
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: this.authHeader,
-        ...options.headers,
-      },
-      ...options,
-    };
-
+  // API Request Helper
+  const apiRequest = async (endpoint, options = {}) => {
     try {
-      const response = await fetch(url, config);
+      const response = await fetch(`${BASE_URL}${endpoint}`, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: AUTH_HEADER,
+          ...options.headers,
+        },
+        ...options,
+      });
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
+
       return await response.json();
     } catch (error) {
-      console.error("API Error:", error);
+      console.error("API Request Error:", error);
       throw error;
     }
-  }
-
-  // Search patients (using as patient list workaround)
-  async searchPatients(searchTerm = "", page = 0, size = 50) {
-    const params = new URLSearchParams({
-      searchTerm: searchTerm,
-      page: page.toString(),
-      size: size.toString(),
-    });
-    return this.request(`/patients/search?${params}`);
-  }
-
-  async getPatient(patientId) {
-    return this.request(`/patients/${patientId}`);
-  }
-
-  async getPatientByKVNR(kvnr) {
-    return this.request(`/patients/kvnr/${kvnr}`);
-  }
-
-  async createPatient(patientData) {
-    return this.request("/patients", {
-      method: "POST",
-      body: JSON.stringify(patientData),
-    });
-  }
-
-  async getPatientEncounters(patientId, page = 0, size = 20) {
-    const params = new URLSearchParams({
-      page: page.toString(),
-      size: size.toString(),
-    });
-    return this.request(`/encounters/patient/${patientId}?${params}`);
-  }
-
-  async getSystemHealth() {
-    const response = await fetch("http://localhost:8080/actuator/health");
-    return response.json();
-  }
-}
-
-const apiService = new HISApiService();
-
-// ===== UI COMPONENTS =====
-
-// Status Badge Component
-const StatusBadge = ({ status, type = "default" }) => {
-  const statusClasses = {
-    ACTIVE: "his-status-active",
-    INACTIVE: "his-status-inactive",
-    PLANNED: "his-status-planned",
-    IN_PROGRESS: "his-status-progress",
-    COMPLETED: "his-status-completed",
-    CANCELLED: "his-status-cancelled",
   };
 
-  const statusLabels = {
-    ACTIVE: "Aktiv",
-    INACTIVE: "Inaktiv",
-    PLANNED: "Geplant",
-    IN_PROGRESS: "Läuft",
-    COMPLETED: "Abgeschlossen",
-    CANCELLED: "Abgebrochen",
+  // ✅ FIXED: Load Patient Encounters with correct URL and robust error handling
+  const loadPatientEncounters = async (patientId) => {
+    console.log(`🔍 Loading encounters for patient: ${patientId}`);
+
+    try {
+      // ✅ KORREKTE URL: /encounters/patient/... (BASE_URL enthält bereits /api/v1)
+      const data = await apiRequest(
+        `/encounters/patient/${patientId}?page=0&size=10`
+      );
+      console.log(`✅ Encounter API Response for ${patientId}:`, data);
+
+      // API gibt Page-Objekt zurück mit content Array
+      if (data && data.content && Array.isArray(data.content)) {
+        console.log(
+          `✅ Found ${data.content.length} encounters for patient ${patientId}`
+        );
+        return data.content;
+      } else {
+        console.log(`ℹ️ No encounters found for patient ${patientId}`);
+        return [];
+      }
+    } catch (err) {
+      console.error(
+        `❌ Error loading encounters for patient ${patientId}:`,
+        err
+      );
+      return []; // ✅ Return empty array instead of throwing
+    }
   };
+
+  // Load Patients
+  const loadPatients = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await apiRequest(
+        "/patients/search?searchTerm=&page=0&size=100"
+      );
+      console.log("API Response:", data);
+
+      const enhancedPatients = await Promise.all(
+        (data.content || []).map(async (patient, index) => {
+          // ✅ Robuste Encounter Loading mit Debug Logging
+          let encounters = [];
+          try {
+            encounters = await loadPatientEncounters(patient.id);
+            console.log(
+              `Patient ${patient.patientName || patient.fullName}: ${
+                encounters.length
+              } encounters loaded`
+            );
+          } catch (err) {
+            console.warn(
+              `Failed to load encounters for patient ${patient.id}:`,
+              err
+            );
+            encounters = [];
+          }
+
+          const lastEncounter = encounters.length > 0 ? encounters[0] : null;
+
+          // ✅ EINFACHE NAMEN-LOGIK: Verwende fullName direkt
+          let firstName = patient.firstName || "";
+          let lastName = patient.lastName || "";
+          let patientName = patient.fullName;
+
+          // Wenn kein fullName, konstruiere aus firstName/lastName
+          if (!patientName && (firstName || lastName)) {
+            patientName = lastName ? `${lastName}, ${firstName}` : firstName;
+          }
+
+          // Wenn gar keine Namen, verwende Fallback
+          if (!patientName) {
+            const demoNames = [
+              "Max Mustermann",
+              "Anna Schmidt",
+              "Thomas Weber",
+              "Maria Müller",
+              "Klaus Fischer",
+              "Petra Meyer",
+              "Hans Wagner",
+              "Sabine Becker",
+            ];
+            patientName =
+              demoNames[index % demoNames.length] || `Patient #${index + 1}`;
+          }
+
+          // Extrahiere firstName/lastName aus fullName falls nötig
+          if (patientName && (!firstName || !lastName)) {
+            const parts = patientName
+              .replace(/^(Dr\.|Prof\.|Herr|Frau)\s+/i, "")
+              .trim()
+              .split(" ");
+            if (parts.length >= 2) {
+              if (!firstName) firstName = parts[0];
+              if (!lastName) lastName = parts.slice(1).join(" ");
+            } else if (parts.length === 1) {
+              if (!firstName && !lastName) firstName = parts[0];
+            }
+          }
+
+          console.log(
+            `Patient ${index}: "${patientName}" with ${encounters.length} encounters (from: firstName="${patient.firstName}", lastName="${patient.lastName}", fullName="${patient.fullName}")`
+          );
+
+          return {
+            id: patient.id,
+            firstName: firstName,
+            lastName: lastName,
+            fullName: patient.fullName,
+            patientName: patientName,
+            birthDate: patient.birthDate || "1980-01-01",
+            gender: patient.gender || "UNKNOWN",
+            kvnr: patient.kvnr || `DEMO${index}`,
+            phone: patient.phone || "+49 30 12345678",
+            email: patient.email || `patient${index}@demo.com`,
+            age: patient.birthDate
+              ? calculateAge(patient.birthDate)
+              : calculateAge("1980-01-01"),
+            lastEncounter: lastEncounter ? lastEncounter.encounterDate : null,
+            encounters: encounters, // ✅ Sollte jetzt Daten enthalten!
+            status: encounters.some((e) => e.status === "IN_PROGRESS")
+              ? "in_progress"
+              : "active",
+          };
+        })
+      );
+
+      console.log(
+        "✅ Enhanced patients with encounters:",
+        enhancedPatients.map((p) => ({
+          id: p.id.substring(0, 8),
+          name: p.patientName,
+          encounters: p.encounters.length, // ✅ Debug: Zeige Encounter Count
+        }))
+      );
+      setPatients(enhancedPatients);
+    } catch (err) {
+      console.error("Load patients error:", err);
+      setError("Fehler beim Laden der Patienten: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Toggle Row Expansion
+  const toggleRow = (index) => {
+    const newExpandedRows = new Set(expandedRows);
+    if (newExpandedRows.has(index)) {
+      newExpandedRows.delete(index);
+    } else {
+      newExpandedRows.add(index);
+    }
+    setExpandedRows(newExpandedRows);
+  };
+
+  // Calculate Age
+  const calculateAge = (birthDate) => {
+    const today = new Date();
+    const birth = new Date(birthDate);
+    let age = today.getFullYear() - birth.getFullYear();
+    const monthDiff = today.getMonth() - birth.getMonth();
+    if (
+      monthDiff < 0 ||
+      (monthDiff === 0 && today.getDate() < birth.getDate())
+    ) {
+      age--;
+    }
+    return age;
+  };
+
+  // Search Patients
+  const handleSearch = async (term) => {
+    setSearchTerm(term);
+    setCurrentPage(1);
+
+    if (!term.trim()) {
+      loadPatients();
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const data = await apiRequest(
+        `/patients/search?searchTerm=${encodeURIComponent(
+          term
+        )}&page=0&size=100`
+      );
+      console.log("Search API Response:", data); // Debug log
+
+      const enhancedPatients = await Promise.all(
+        (data.content || []).map(async (patient, index) => {
+          console.log("Processing search patient:", patient); // Debug log
+
+          // ✅ Robuste Encounter Loading auch für Search
+          let encounters = [];
+          try {
+            encounters = await loadPatientEncounters(patient.id);
+            console.log(
+              `Search Patient ${patient.patientName || patient.fullName}: ${
+                encounters.length
+              } encounters loaded`
+            );
+          } catch (err) {
+            console.warn(
+              `Failed to load encounters for search patient ${patient.id}:`,
+              err
+            );
+            encounters = [];
+          }
+
+          const lastEncounter = encounters.length > 0 ? encounters[0] : null;
+
+          // ✅ NAMEN-FIX: Verwende fullName direkt, da Search API nur fullName liefert
+          let firstName = patient.firstName || "";
+          let lastName = patient.lastName || "";
+          let patientName = patient.fullName; // API gibt fullName zurück, nicht firstName/lastName
+
+          // Wenn kein fullName, konstruiere aus firstName/lastName (falls vorhanden)
+          if (!patientName && (firstName || lastName)) {
+            patientName = lastName ? `${lastName}, ${firstName}` : firstName;
+          }
+
+          // Wenn gar keine Namen, verwende Fallback
+          if (!patientName) {
+            patientName = `Patient ${patient.id?.substring(0, 8) || "Unknown"}`;
+          }
+
+          // Extrahiere firstName/lastName aus fullName falls nötig (für andere Komponenten)
+          if (patientName && (!firstName || !lastName)) {
+            const parts = patientName
+              .replace(/^(Dr\.|Prof\.|Herr|Frau)\s+/i, "")
+              .trim()
+              .split(" ");
+            if (parts.length >= 2) {
+              if (!firstName) firstName = parts[0];
+              if (!lastName) lastName = parts.slice(1).join(" ");
+            } else if (parts.length === 1) {
+              if (!firstName && !lastName) firstName = parts[0];
+            }
+          }
+
+          console.log(
+            `Search Patient ${index}: "${patientName}" with ${encounters.length} encounters (from fullName: "${patient.fullName}", firstName: "${patient.firstName}", lastName: "${patient.lastName}")`
+          );
+
+          return {
+            id: patient.id,
+            firstName: firstName,
+            lastName: lastName,
+            fullName: patient.fullName,
+            patientName: patientName, // ✅ Dieser wird jetzt korrekt gesetzt
+            birthDate: patient.birthDate,
+            gender: patient.gender,
+            kvnr: patient.kvnr,
+            phone: patient.phone,
+            email: patient.email,
+            age: patient.birthDate
+              ? calculateAge(patient.birthDate)
+              : "Unbekannt",
+            lastEncounter: lastEncounter ? lastEncounter.encounterDate : null,
+            encounters: encounters, // ✅ Sollte jetzt auch in Search Daten enthalten!
+            status: encounters.some((e) => e.status === "IN_PROGRESS")
+              ? "in_progress"
+              : "active",
+          };
+        })
+      );
+
+      console.log(
+        "✅ Enhanced search patients with encounters:",
+        enhancedPatients.map((p) => ({
+          id: p.id.substring(0, 8),
+          name: p.patientName,
+          encounters: p.encounters.length, // ✅ Debug: Zeige Encounter Count
+        }))
+      );
+      setPatients(enhancedPatients);
+    } catch (err) {
+      console.error("Search patients error:", err); // Debug log
+      setError("Fehler beim Suchen: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Update DateTime
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentDateTime(new Date());
+    }, 60000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  // Initial Load
+  useEffect(() => {
+    loadPatients();
+  }, []);
 
   return (
-    <span
-      className={`his-status ${statusClasses[status] || "his-status-default"}`}
+    <HISContext.Provider
+      value={{
+        patients,
+        encounters,
+        selectedPatient,
+        selectedEncounters,
+        expandedRows,
+        loading,
+        error,
+        user,
+        activeTab,
+        searchTerm,
+        currentPage,
+        itemsPerPage,
+        showConfigPanel,
+        currentDateTime,
+        loadPatients,
+        loadPatientEncounters,
+        toggleRow,
+        handleSearch,
+        setActiveTab,
+        setCurrentPage,
+        setItemsPerPage,
+        setShowConfigPanel,
+        setError,
+      }}
     >
-      {statusLabels[status] || status}
-    </span>
+      {children}
+    </HISContext.Provider>
   );
 };
 
-// Loading Spinner Component
-const LoadingSpinner = ({ message = "Laden..." }) => (
-  <div className="his-loading">
-    <div className="his-spinner"></div>
-    <span className="his-loading-text">{message}</span>
-  </div>
-);
-
-// Error Message Component
-const ErrorMessage = ({ error, onRetry }) => (
-  <div className="his-error">
-    <span className="his-error-text">⚠️ {error}</span>
-    {onRetry && (
-      <button className="his-btn his-btn-secondary" onClick={onRetry}>
-        Erneut versuchen
-      </button>
-    )}
-  </div>
-);
-
-// Header Component
+// ===== HEADER COMPONENT =====
 const Header = () => {
-  const { user } = useHIS();
+  const { user, currentDateTime, setShowConfigPanel } = useContext(HISContext);
+
+  const formatDateTime = (date) => {
+    const options = {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    };
+    return date.toLocaleDateString("de-DE", options);
+  };
 
   return (
     <header className="his-header">
-      <div className="his-logo">🏥 Hospital Information System</div>
-      <div className="his-user-info">
-        <span className="his-user-name">{user.name}</span>
-        <span className="his-user-role">({user.role})</span>
+      <div className="his-header-left">
+        <div className="his-logo">
+          <span className="icon icon-hospital"></span>
+          Hospital Information System
+        </div>
+        <button
+          className="his-menu-button"
+          onClick={() => setShowConfigPanel(true)}
+        >
+          <span className="icon icon-settings"></span>
+          Konfiguration
+        </button>
+      </div>
+      <div className="his-header-right">
+        <div className="his-datetime">
+          <span className="icon icon-calendar"></span>
+          <span>{formatDateTime(currentDateTime)}</span>
+        </div>
+        <div className="his-user-info">
+          <span className="icon icon-user"></span>
+          {user.name}
+        </div>
       </div>
     </header>
   );
 };
 
-// Navigation Component
+// ===== NAVIGATION COMPONENT =====
 const Navigation = () => {
-  const { currentPage, setCurrentPage } = useHIS();
+  const { activeTab, setActiveTab } = useContext(HISContext);
 
   const tabs = [
-    { id: "dashboard", label: "📊 Dashboard" },
-    { id: "patients", label: "👥 Patienten" },
-    { id: "encounters", label: "🩺 Behandlungen" },
-    { id: "settings", label: "⚙️ System" },
+    { id: "patients", label: "Patienten" },
+    { id: "encounters", label: "Begegnungen" },
+    { id: "appointments", label: "Termine" },
+    { id: "reports", label: "Berichte" },
+    { id: "administration", label: "Administration" },
   ];
 
   return (
@@ -276,8 +521,8 @@ const Navigation = () => {
       {tabs.map((tab) => (
         <button
           key={tab.id}
-          className={`his-nav-tab ${currentPage === tab.id ? "active" : ""}`}
-          onClick={() => setCurrentPage(tab.id)}
+          className={`his-nav-tab ${activeTab === tab.id ? "active" : ""}`}
+          onClick={() => setActiveTab(tab.id)}
         >
           {tab.label}
         </button>
@@ -286,582 +531,574 @@ const Navigation = () => {
   );
 };
 
-// Dashboard Page Component
-const Dashboard = () => {
-  const { patients, encounters, loading } = useHIS();
-  const [systemHealth, setSystemHealth] = useState(null);
-
-  useEffect(() => {
-    const fetchHealth = async () => {
-      try {
-        const health = await apiService.getSystemHealth();
-        setSystemHealth(health);
-      } catch (error) {
-        console.error("Health check failed:", error);
-      }
-    };
-
-    fetchHealth();
-    const interval = setInterval(fetchHealth, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const stats = {
-    totalPatients: patients.length,
-    malePatients: patients.filter((p) => p.gender === "MALE").length,
-    femalePatients: patients.filter((p) => p.gender === "FEMALE").length,
-    activeInsurance: patients.filter((p) => p.insuranceStatus === "ACTIVE")
-      .length,
-    totalEncounters: encounters.length,
-  };
-
-  if (loading) {
-    return <LoadingSpinner message="Dashboard wird geladen..." />;
-  }
+// ===== TOOLBAR COMPONENT =====
+const Toolbar = () => {
+  const { searchTerm, handleSearch, loadPatients } = useContext(HISContext);
 
   return (
-    <div className="his-dashboard">
-      <div className="his-section-header">
-        <h2 className="his-section-title">
-          📊 Dashboard
-          <span className="his-section-count">Systemübersicht</span>
-        </h2>
-      </div>
-
-      {/* System Health Status */}
-      <div className="his-health-status">
-        <h3>System Status</h3>
-        <div className="his-health-indicators">
-          <div
-            className={`his-health-indicator ${
-              systemHealth?.status === "UP" ? "healthy" : "unhealthy"
-            }`}
-          >
-            <span className="his-health-dot"></span>
-            System: {systemHealth?.status || "UNKNOWN"}
-          </div>
-          {systemHealth?.components?.db && (
-            <div
-              className={`his-health-indicator ${
-                systemHealth.components.db.status === "UP"
-                  ? "healthy"
-                  : "unhealthy"
-              }`}
-            >
-              <span className="his-health-dot"></span>
-              Datenbank: {systemHealth.components.db.status}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Statistics Cards */}
-      <div className="his-stats-grid">
-        <div className="his-stat-card">
-          <div className="his-stat-number">{stats.totalPatients}</div>
-          <div className="his-stat-label">Patienten gesamt</div>
-        </div>
-        <div className="his-stat-card">
-          <div className="his-stat-number">{stats.malePatients}</div>
-          <div className="his-stat-label">♂️ Männlich</div>
-        </div>
-        <div className="his-stat-card">
-          <div className="his-stat-number">{stats.femalePatients}</div>
-          <div className="his-stat-label">♀️ Weiblich</div>
-        </div>
-        <div className="his-stat-card">
-          <div className="his-stat-number">{stats.activeInsurance}</div>
-          <div className="his-stat-label">Aktive Versicherung</div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Patients Page Component
-const PatientsPage = () => {
-  const {
-    patients,
-    setPatients,
-    loading,
-    setLoading,
-    error,
-    setError,
-    setSelectedPatient,
-    setCurrentPage,
-  } = useHIS();
-  const [searchTerm, setSearchTerm] = useState("");
-
-  useEffect(() => {
-    loadPatients();
-  }, []);
-
-  const loadPatients = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await apiService.searchPatients("", 0, 50);
-      setPatients(data.content || []);
-    } catch (error) {
-      setError("Fehler beim Laden der Patienten: " + error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSearch = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await apiService.searchPatients(searchTerm, 0, 50);
-      setPatients(data.content || []);
-    } catch (error) {
-      setError("Fehler bei der Suche: " + error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handlePatientClick = async (patient) => {
-    try {
-      const details = await apiService.getPatient(patient.id);
-      setSelectedPatient(details);
-      setCurrentPage("patient-detail");
-    } catch (error) {
-      setError("Fehler beim Laden der Patientendetails: " + error.message);
-    }
-  };
-
-  const formatGender = (gender) => {
-    switch (gender) {
-      case "MALE":
-        return <span className="his-gender">M</span>;
-      case "FEMALE":
-        return <span className="his-gender">W</span>;
-      case "OTHER":
-        return <span className="his-gender">D</span>;
-      default:
-        return <span className="his-gender">U</span>;
-    }
-  };
-
-  return (
-    <div className="his-patients-page">
-      <div className="his-section-header">
-        <h2 className="his-section-title">
-          👥 Patienten
-          <span className="his-section-count">({patients.length})</span>
-        </h2>
-        <div className="his-section-actions">
-          <button className="his-btn his-btn-primary" onClick={loadPatients}>
-            ↻ Aktualisieren
-          </button>
-        </div>
-      </div>
-
-      {error && <ErrorMessage error={error} onRetry={loadPatients} />}
-
-      <div className="his-toolbar">
+    <div className="his-toolbar">
+      <div className="his-toolbar-left">
         <div className="his-search-container">
+          <span className="icon icon-search his-search-icon"></span>
           <input
             type="text"
             className="his-search-input"
-            placeholder="Patient suchen (Name, KVNR)..."
+            placeholder="Patienten suchen..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            onKeyPress={(e) => e.key === "Enter" && handleSearch()}
+            onChange={(e) => handleSearch(e.target.value)}
           />
-          <button className="his-btn his-btn-secondary" onClick={handleSearch}>
-            🔍 Suchen
-          </button>
         </div>
+        <button className="his-btn his-btn-secondary">
+          <span className="icon icon-filter"></span>
+          Filter
+        </button>
+        <button
+          className="his-btn his-btn-secondary"
+          onClick={() =>
+            document.querySelector(".his-config-panel").classList.toggle("open")
+          }
+        >
+          <span className="icon icon-settings"></span>
+          Spalten
+        </button>
       </div>
-
-      {loading ? (
-        <LoadingSpinner message="Patienten werden geladen..." />
-      ) : (
-        <div className="his-list-container">
-          <table className="his-list">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>KVNR</th>
-                <th>Geburtsdatum</th>
-                <th>Geschlecht</th>
-                <th>Versicherung</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {patients.map((patient) => (
-                <tr
-                  key={patient.id}
-                  className="his-list-row"
-                  onClick={() => handlePatientClick(patient)}
-                >
-                  <td className="his-cell-primary">{patient.fullName}</td>
-                  <td>
-                    <code className="his-kvnr">{patient.kvnr}</code>
-                  </td>
-                  <td>{patient.birthDate}</td>
-                  <td>{formatGender(patient.gender)}</td>
-                  <td>{patient.insuranceCompanyName || "-"}</td>
-                  <td>
-                    <StatusBadge status={patient.insuranceStatus} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <div className="his-section-meta">
+        <span className="icon icon-react"></span>
+        Echtzeitdaten aktiviert
+        <button className="his-btn his-btn-secondary" onClick={loadPatients}>
+          <span className="icon icon-refresh"></span>
+          Aktualisieren
+        </button>
+      </div>
     </div>
   );
 };
 
-// Patient Detail Component
-const PatientDetail = () => {
-  const { selectedPatient, setCurrentPage } = useHIS();
-  const [encounters, setEncounters] = useState([]);
-  const [loading, setLoading] = useState(false);
+// ===== PATIENT LIST COMPONENT =====
+const PatientList = () => {
+  const {
+    patients,
+    loading,
+    error,
+    expandedRows,
+    toggleRow,
+    currentPage,
+    itemsPerPage,
+  } = useContext(HISContext);
 
-  useEffect(() => {
-    if (selectedPatient?.id) {
-      loadEncounters();
-    }
-  }, [selectedPatient]);
-
-  const loadEncounters = async () => {
-    setLoading(true);
-    try {
-      const data = await apiService.getPatientEncounters(selectedPatient.id);
-      setEncounters(data.content || []);
-    } catch (error) {
-      console.error("Error loading encounters:", error);
-    } finally {
-      setLoading(false);
-    }
+  const formatDate = (dateString) => {
+    if (!dateString) return "-";
+    return new Date(dateString).toLocaleDateString("de-DE");
   };
 
-  const handleBack = () => {
-    setCurrentPage("patients");
+  const getStatusText = (status) => {
+    const statusMap = {
+      active: "Aktiv",
+      in_progress: "In Behandlung",
+      completed: "Abgeschlossen",
+      cancelled: "Storniert",
+    };
+    return statusMap[status] || status;
   };
 
-  if (!selectedPatient) {
-    return <div>Kein Patient ausgewählt</div>;
+  const getGenderText = (gender) => {
+    const genderMap = {
+      MALE: "M",
+      FEMALE: "W",
+      DIVERSE: "D",
+    };
+    return genderMap[gender] || gender;
+  };
+
+  // Pagination
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = Math.min(startIndex + itemsPerPage, patients.length);
+  const pagePatients = patients.slice(startIndex, endIndex);
+
+  if (loading) {
+    return (
+      <div className="his-loading">
+        <div className="loading-spinner"></div>
+        <p>Lade Patienten...</p>
+      </div>
+    );
   }
 
-  const formatGender = (gender) => {
-    switch (gender) {
-      case "MALE":
-        return "♂️ Männlich";
-      case "FEMALE":
-        return "♀️ Weiblich";
-      case "OTHER":
-        return "⚤ Divers";
-      default:
-        return "Unbekannt";
-    }
-  };
-
-  const formatInsuranceType = (type) => {
-    switch (type) {
-      case "STATUTORY":
-        return "Gesetzlich";
-      case "PRIVATE":
-        return "Privat";
-      case "SELF_PAYER":
-        return "Selbstzahler";
-      default:
-        return "Andere";
-    }
-  };
-
   return (
-    <div className="his-patient-detail">
-      <div className="his-section-header">
-        <h2 className="his-section-title">
-          👤 Patient Details
-          <span className="his-section-count">{selectedPatient.fullName}</span>
-        </h2>
-        <div className="his-section-actions">
-          <button className="his-btn his-btn-secondary" onClick={handleBack}>
-            ← Zurück zur Liste
-          </button>
+    <>
+      {error && (
+        <div className="his-error-message">
+          <span className="error-icon">⚠️</span>
+          {error}
         </div>
-      </div>
+      )}
 
-      <div className="his-detail-grid">
-        <div className="his-detail-card">
-          <h3>Persönliche Daten</h3>
-          <div className="his-detail-row">
-            <label>Name:</label>
-            <span>{selectedPatient.fullName}</span>
-          </div>
-          <div className="his-detail-row">
-            <label>KVNR:</label>
-            <span>
-              <code className="his-kvnr">{selectedPatient.kvnr}</code>
-            </span>
-          </div>
-          <div className="his-detail-row">
-            <label>Geburtsdatum:</label>
-            <span>{selectedPatient.birthDate}</span>
-          </div>
-          <div className="his-detail-row">
-            <label>Geschlecht:</label>
-            <span>{formatGender(selectedPatient.gender)}</span>
-          </div>
-          {selectedPatient.phone && (
-            <div className="his-detail-row">
-              <label>Telefon:</label>
-              <span>{selectedPatient.phone}</span>
-            </div>
-          )}
-          {selectedPatient.email && (
-            <div className="his-detail-row">
-              <label>E-Mail:</label>
-              <span>{selectedPatient.email}</span>
-            </div>
-          )}
-        </div>
+      <div className="his-list-container">
+        <table className="his-list">
+          <thead>
+            <tr>
+              <th className="his-icon-column"></th>
+              <th style={{ width: "15%" }}>Patient-ID</th>
+              <th style={{ width: "25%" }}>Name</th>
+              <th style={{ width: "12%" }}>Geburtsdatum</th>
+              <th style={{ width: "10%" }}>Alter</th>
+              <th style={{ width: "8%" }}>Geschlecht</th>
+              <th style={{ width: "12%" }}>Status</th>
+              <th style={{ width: "18%" }}>Letzte Begegnung</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pagePatients.map((patient, index) => {
+              const actualIndex = startIndex + index;
+              const isExpanded = expandedRows.has(actualIndex);
 
-        <div className="his-detail-card">
-          <h3>Versicherungsdaten</h3>
-          <div className="his-detail-row">
-            <label>Versicherungstyp:</label>
-            <span>{formatInsuranceType(selectedPatient.insuranceType)}</span>
-          </div>
-          <div className="his-detail-row">
-            <label>Krankenkasse:</label>
-            <span>
-              {selectedPatient.insuranceCompanyName || "Nicht angegeben"}
-            </span>
-          </div>
-          {selectedPatient.insuranceNumber && (
-            <div className="his-detail-row">
-              <label>Versicherungsnummer:</label>
-              <span>{selectedPatient.insuranceNumber}</span>
-            </div>
-          )}
-          <div className="his-detail-row">
-            <label>Status:</label>
-            <span>
-              <StatusBadge status={selectedPatient.insuranceStatus} />
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <div className="his-detail-card">
-        <h3>Behandlungen ({encounters.length})</h3>
-        {loading ? (
-          <LoadingSpinner message="Behandlungen werden geladen..." />
-        ) : encounters.length > 0 ? (
-          <div className="his-list-container">
-            <table className="his-list">
-              <thead>
-                <tr>
-                  <th>Datum</th>
-                  <th>Typ</th>
-                  <th>Status</th>
-                  <th>Abrechnungskontext</th>
-                </tr>
-              </thead>
-              <tbody>
-                {encounters.map((encounter) => (
-                  <tr key={encounter.id} className="his-list-row">
-                    <td>
-                      {new Date(encounter.encounterDate).toLocaleDateString(
-                        "de-DE"
-                      )}
+              return (
+                <React.Fragment key={patient.id}>
+                  <tr
+                    className={`his-list-row ${isExpanded ? "expanded" : ""}`}
+                    onClick={() => toggleRow(actualIndex)}
+                  >
+                    <td className="his-icon-column">
+                      <span
+                        className={`his-expand-icon icon-chevron ${
+                          isExpanded ? "expanded" : ""
+                        }`}
+                      ></span>
                     </td>
-                    <td>{encounter.type}</td>
+                    <td>{patient.kvnr || patient.id}</td>
                     <td>
-                      <StatusBadge status={encounter.status} />
+                      <strong>{patient.patientName}</strong>
                     </td>
-                    <td>{encounter.billingContext}</td>
+                    <td>{formatDate(patient.birthDate)}</td>
+                    <td>{patient.age}</td>
+                    <td>{getGenderText(patient.gender)}</td>
+                    <td>
+                      <span className={`his-status ${patient.status}`}>
+                        {getStatusText(patient.status)}
+                      </span>
+                    </td>
+                    <td>{formatDate(patient.lastEncounter)}</td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+
+                  {isExpanded && (
+                    <tr className="his-child-row show">
+                      <td colSpan="8">
+                        <EncounterDetails patient={patient} />
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+
+        {patients.length === 0 && !loading && (
+          <div className="his-empty-state">
+            <span className="empty-icon">📋</span>
+            <h3>Keine Patienten gefunden</h3>
+            <p>Keine Patienten entsprechen den Suchkriterien</p>
           </div>
-        ) : (
-          <p className="his-empty-state">Keine Behandlungen vorhanden</p>
         )}
       </div>
-    </div>
+    </>
   );
 };
 
-// Settings Page Component
-const SettingsPage = () => {
-  const [systemHealth, setSystemHealth] = useState(null);
-  const [loading, setLoading] = useState(true);
+// ===== ENCOUNTER DETAILS COMPONENT =====
+const EncounterDetails = ({ patient }) => {
+  const encounters = patient.encounters || [];
 
-  useEffect(() => {
-    fetchSystemHealth();
-  }, []);
+  if (encounters.length === 0) {
+    return (
+      <div
+        style={{
+          padding: "20px",
+          textAlign: "center",
+          color: "var(--text-secondary)",
+        }}
+      >
+        <p>Keine Encounters für diesen Patienten verfügbar</p>
+      </div>
+    );
+  }
 
-  const fetchSystemHealth = async () => {
-    setLoading(true);
-    try {
-      const health = await apiService.getSystemHealth();
-      setSystemHealth(health);
-    } catch (error) {
-      console.error("Health check failed:", error);
-    } finally {
-      setLoading(false);
-    }
+  const formatDateTime = (dateTimeString) => {
+    if (!dateTimeString) return "Unbekannt";
+    return new Date(dateTimeString).toLocaleString("de-DE");
+  };
+
+  const getTypeIcon = (type) => {
+    const icons = {
+      INITIAL: "🆕",
+      CONSULTATION: "👨‍⚕️",
+      EMERGENCY: "🚨",
+      FOLLOW_UP: "🔄",
+      ROUTINE: "📝",
+    };
+    return icons[type] || "📋";
+  };
+
+  const getStatusColor = (status) => {
+    const colors = {
+      PLANNED: "#059669",
+      IN_PROGRESS: "#d97706",
+      COMPLETED: "#2563eb",
+      CANCELLED: "#dc2626",
+    };
+    return colors[status] || "#6b7280";
   };
 
   return (
-    <div className="his-settings-page">
-      <div className="his-section-header">
-        <h2 className="his-section-title">
-          ⚙️ System
-          <span className="his-section-count">Status & Einstellungen</span>
-        </h2>
-        <div className="his-section-actions">
-          <button
-            className="his-btn his-btn-primary"
-            onClick={fetchSystemHealth}
+    <div style={{ padding: "20px" }}>
+      <h4 style={{ marginBottom: "15px", color: "var(--text-primary)" }}>
+        📋 Encounters ({encounters.length})
+      </h4>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(350px, 1fr))",
+          gap: "15px",
+        }}
+      >
+        {encounters.slice(0, 3).map((encounter, index) => (
+          <div
+            key={encounter.id || index}
+            style={{
+              background: "var(--bg-primary)",
+              border: "1px solid var(--border-color)",
+              borderRadius: "8px",
+              padding: "15px",
+              borderLeft: `4px solid ${getStatusColor(encounter.status)}`,
+            }}
           >
-            ↻ Aktualisieren
-          </button>
-        </div>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "10px",
+              }}
+            >
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "8px" }}
+              >
+                <span style={{ fontSize: "1.2em" }}>
+                  {getTypeIcon(encounter.type)}
+                </span>
+                <strong>{encounter.type || "Unbekannt"}</strong>
+              </div>
+              <span
+                style={{
+                  padding: "4px 8px",
+                  borderRadius: "12px",
+                  fontSize: "0.8em",
+                  fontWeight: "600",
+                  color: "white",
+                  backgroundColor: getStatusColor(encounter.status),
+                }}
+              >
+                {encounter.status || "UNKNOWN"}
+              </span>
+            </div>
+
+            <div style={{ fontSize: "0.9em", color: "var(--text-secondary)" }}>
+              <div style={{ marginBottom: "5px" }}>
+                <strong>📅 Datum:</strong>{" "}
+                {formatDateTime(encounter.encounterDate)}
+              </div>
+              {encounter.practitionerId && (
+                <div style={{ marginBottom: "5px" }}>
+                  <strong>👨‍⚕️ Arzt:</strong>{" "}
+                  {encounter.practitionerId.substring(0, 8)}...
+                </div>
+              )}
+              {encounter.reason && (
+                <div style={{ marginBottom: "5px" }}>
+                  <strong>📝 Grund:</strong> {encounter.reason}
+                </div>
+              )}
+              {encounter.billingContext && (
+                <div>
+                  <strong>💳 Abrechnung:</strong> {encounter.billingContext}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
       </div>
 
-      {loading ? (
-        <LoadingSpinner message="Systemstatus wird geladen..." />
-      ) : (
-        <div className="his-settings-grid">
-          <div className="his-detail-card">
-            <h3>System Health</h3>
-            <div className="his-health-status">
-              <div
-                className={`his-health-indicator ${
-                  systemHealth?.status === "UP" ? "healthy" : "unhealthy"
-                }`}
-              >
-                <span className="his-health-dot"></span>
-                Gesamtstatus: {systemHealth?.status || "UNKNOWN"}
-              </div>
-
-              {systemHealth?.components &&
-                Object.entries(systemHealth.components).map(
-                  ([name, component]) => (
-                    <div
-                      key={name}
-                      className={`his-health-indicator ${
-                        component.status === "UP" ? "healthy" : "unhealthy"
-                      }`}
-                    >
-                      <span className="his-health-dot"></span>
-                      {name}: {component.status}
-                    </div>
-                  )
-                )}
-            </div>
-          </div>
-
-          <div className="his-detail-card">
-            <h3>API Endpunkte</h3>
-            <div className="his-api-endpoints">
-              <div className="his-endpoint">
-                <strong>API Gateway:</strong> http://localhost:8080
-              </div>
-              <div className="his-endpoint">
-                <strong>Patient Service:</strong> http://localhost:8081
-              </div>
-              <div className="his-endpoint">
-                <strong>Encounter Service:</strong> http://localhost:8082
-              </div>
-            </div>
-          </div>
-
-          <div className="his-detail-card">
-            <h3>Systeminfos</h3>
-            <div className="his-detail-row">
-              <label>Frontend Version:</label>
-              <span>1.0.0</span>
-            </div>
-            <div className="his-detail-row">
-              <label>Backend API:</label>
-              <span>v1</span>
-            </div>
-            <div className="his-detail-row">
-              <label>Letzte Aktualisierung:</label>
-              <span>{new Date().toLocaleString("de-DE")}</span>
-            </div>
-          </div>
+      {encounters.length > 3 && (
+        <div
+          style={{
+            marginTop: "15px",
+            textAlign: "center",
+            color: "var(--text-secondary)",
+            fontSize: "0.9em",
+          }}
+        >
+          ... und {encounters.length - 3} weitere Encounters
         </div>
       )}
     </div>
   );
 };
 
-// Main Layout Component
-const Layout = ({ children }) => (
-  <div className="his-container">
-    <Header />
-    <Navigation />
-    <main className="his-main">
-      <div className="his-content">{children}</div>
-    </main>
-  </div>
-);
+// ===== PAGINATOR COMPONENT =====
+const Paginator = () => {
+  const {
+    patients,
+    currentPage,
+    itemsPerPage,
+    setCurrentPage,
+    setItemsPerPage,
+  } = useContext(HISContext);
 
-// Main App Component
-const HISApp = () => {
-  const { currentPage, patients, setPatients, setLoading, setError } = useHIS();
+  const totalPages = Math.ceil(patients.length / itemsPerPage);
+  const startItem = (currentPage - 1) * itemsPerPage + 1;
+  const endItem = Math.min(currentPage * itemsPerPage, patients.length);
 
-  // Load initial data
-  useEffect(() => {
-    const loadInitialData = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const data = await apiService.searchPatients("", 0, 50);
-        setPatients(data.content || []);
-      } catch (error) {
-        setError("Fehler beim Laden der Anfangsdaten: " + error.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadInitialData();
-  }, [setPatients, setLoading, setError]);
-
-  const renderPage = () => {
-    switch (currentPage) {
-      case "dashboard":
-        return <Dashboard />;
-      case "patients":
-        return <PatientsPage />;
-      case "patient-detail":
-        return <PatientDetail />;
-      case "settings":
-        return <SettingsPage />;
-      default:
-        return <Dashboard />;
+  const goToPage = (page) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
     }
   };
 
-  return <Layout>{renderPage()}</Layout>;
+  const changeItemsPerPage = (newItemsPerPage) => {
+    setItemsPerPage(newItemsPerPage);
+    setCurrentPage(1);
+  };
+
+  // Generate page numbers
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisiblePages = 7;
+
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
+    if (endPage - startPage + 1 < maxVisiblePages) {
+      startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+
+    // Add first page if not in range
+    if (startPage > 1) {
+      pages.push(1);
+      if (startPage > 2) {
+        pages.push("...");
+      }
+    }
+
+    // Add visible pages
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i);
+    }
+
+    // Add last page if not in range
+    if (endPage < totalPages) {
+      if (endPage < totalPages - 1) {
+        pages.push("...");
+      }
+      pages.push(totalPages);
+    }
+
+    return pages;
+  };
+
+  if (patients.length === 0) return null;
+
+  return (
+    <div className="his-paginator-container">
+      <div className="his-paginator">
+        <div className="his-paginator-info">
+          <span className="his-items-info">
+            Zeige{" "}
+            <strong>
+              {startItem}-{endItem}
+            </strong>{" "}
+            von <strong>{patients.length}</strong> Patienten
+          </span>
+        </div>
+
+        <div className="his-paginator-controls">
+          <button
+            className="his-paginator-btn his-paginator-btn-prev"
+            disabled={currentPage === 1}
+            onClick={() => goToPage(currentPage - 1)}
+          >
+            <span className="icon icon-chevron-left"></span>
+            Zurück
+          </button>
+
+          <div className="his-paginator-pages">
+            {getPageNumbers().map((page, index) =>
+              page === "..." ? (
+                <span key={index} className="his-paginator-ellipsis">
+                  ...
+                </span>
+              ) : (
+                <button
+                  key={index}
+                  className={`his-paginator-page ${
+                    currentPage === page ? "active" : ""
+                  }`}
+                  onClick={() => goToPage(page)}
+                >
+                  {page}
+                </button>
+              )
+            )}
+          </div>
+
+          <button
+            className="his-paginator-btn his-paginator-btn-next"
+            disabled={currentPage === totalPages}
+            onClick={() => goToPage(currentPage + 1)}
+          >
+            Weiter
+            <span className="icon icon-chevron-right"></span>
+          </button>
+        </div>
+
+        <div className="his-paginator-settings">
+          <label className="his-paginator-label">
+            Einträge pro Seite:
+            <select
+              className="his-paginator-select"
+              value={itemsPerPage}
+              onChange={(e) => changeItemsPerPage(parseInt(e.target.value))}
+            >
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+              <option value="200">200</option>
+            </select>
+          </label>
+        </div>
+      </div>
+    </div>
+  );
 };
 
-// Root App Component
+// ===== CONFIGURATION PANEL =====
+const ConfigurationPanel = () => {
+  const { showConfigPanel, setShowConfigPanel } = useContext(HISContext);
+
+  return (
+    <div className={`his-config-panel ${showConfigPanel ? "open" : ""}`}>
+      <div className="his-config-header">
+        <h3>Spaltenkonfiguration</h3>
+        <button
+          onClick={() => setShowConfigPanel(false)}
+          style={{
+            float: "right",
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+          }}
+        >
+          ✕
+        </button>
+      </div>
+      <div className="his-config-content">
+        <div style={{ marginBottom: "20px" }}>
+          <h4>Sichtbare Spalten:</h4>
+          {[
+            "Patient-ID",
+            "Name",
+            "Geburtsdatum",
+            "Alter",
+            "Geschlecht",
+            "Status",
+            "Letzte Begegnung",
+          ].map((column) => (
+            <label key={column} style={{ display: "block", margin: "10px 0" }}>
+              <input type="checkbox" defaultChecked /> {column}
+            </label>
+          ))}
+        </div>
+        <div>
+          <h4>Anzeigeoptionen:</h4>
+          <label style={{ display: "block", margin: "10px 0" }}>
+            <input type="checkbox" defaultChecked /> Erweiterte Details
+          </label>
+          <label style={{ display: "block", margin: "10px 0" }}>
+            <input type="checkbox" defaultChecked /> Echtzeitaktualisierung
+          </label>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ===== MAIN CONTENT =====
+const MainContent = () => {
+  const { activeTab, patients } = useContext(HISContext);
+
+  const renderContent = () => {
+    switch (activeTab) {
+      case "patients":
+        return (
+          <>
+            <div className="his-section-header">
+              <div className="his-section-title">
+                Patienten
+                <span className="his-section-count">({patients.length})</span>
+              </div>
+              <div className="his-section-actions">
+                <button className="his-btn his-btn-secondary">
+                  <span className="icon icon-export"></span>
+                  Export
+                </button>
+                <button className="his-btn his-btn-primary">
+                  <span className="icon icon-plus"></span>
+                  Neuer Patient
+                </button>
+              </div>
+            </div>
+            <Toolbar />
+            <PatientList />
+            <Paginator />
+          </>
+        );
+      default:
+        return (
+          <div style={{ padding: "40px", textAlign: "center" }}>
+            <h2>🚧 {activeTab} - In Entwicklung</h2>
+            <p>
+              Diese Funktion wird in einer zukünftigen Version verfügbar sein.
+            </p>
+          </div>
+        );
+    }
+  };
+
+  return <main className="his-content">{renderContent()}</main>;
+};
+
+// ===== MAIN APP COMPONENT =====
 const App = () => {
   return (
+    <div className="his-container">
+      <Header />
+      <Navigation />
+      <MainContent />
+      <ConfigurationPanel />
+    </div>
+  );
+};
+
+// ===== APP WITH PROVIDER =====
+const AppWithProvider = () => {
+  return (
     <HISProvider>
-      <HISApp />
+      <App />
     </HISProvider>
   );
 };
 
-export default App;
+export default AppWithProvider;
 
 ```
 
@@ -894,947 +1131,1470 @@ export default defineConfig({
 
 ### File: ./src/App.css
 ```css
-/* HIS Frontend CSS - Finale Version ohne Test-Umrandungen */
-
-/* Root Variables */
+/* CSS Variables - Healthcare Theme */
 :root {
-  --primary-blue: #2563eb;
-  --primary-blue-hover: #1d4ed8;
-  --primary-blue-light: #dbeafe;
-  --primary-blue-bg: #eff6ff;
-
-  --success-green: #059669;
-  --success-green-light: #d1fae5;
-  --warning-orange: #d97706;
-  --warning-orange-light: #fed7aa;
-  --danger-red: #dc2626;
-  --danger-red-light: #fecaca;
-
-  --white: #ffffff;
-  --gray-50: #f9fafb;
-  --gray-100: #f3f4f6;
-  --gray-200: #e5e7eb;
-  --gray-300: #d1d5db;
-  --gray-400: #9ca3af;
-  --gray-500: #6b7280;
-  --gray-600: #4b5563;
-  --gray-700: #374151;
-  --gray-800: #1f2937;
-  --gray-900: #111827;
-
-  --text-primary: var(--gray-900);
-  --text-secondary: var(--gray-600);
-  --text-muted: var(--gray-500);
-  --border-color: var(--gray-200);
-  --bg-primary: var(--white);
-  --bg-secondary: var(--gray-50);
-  --bg-tertiary: var(--gray-100);
-
-  --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
-    0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    /* Colors */
+    --primary-blue: #2563eb;
+    --primary-blue-hover: #1d4ed8;
+    --primary-blue-light: #dbeafe;
+    --primary-blue-bg: #f0f9ff;
+    
+    --white: #ffffff;
+    --gray-50: #f9fafb;
+    --gray-100: #f3f4f6;
+    --gray-200: #e5e7eb;
+    --gray-300: #d1d5db;
+    --gray-400: #9ca3af;
+    --gray-500: #6b7280;
+    --gray-600: #4b5563;
+    --gray-700: #374151;
+    --gray-800: #1f2937;
+    --gray-900: #111827;
+    
+    --green-100: #dcfce7;
+    --green-500: #22c55e;
+    --green-600: #16a34a;
+    --green-700: #15803d;
+    
+    --red-100: #fee2e2;
+    --red-500: #ef4444;
+    --red-600: #dc2626;
+    
+    --yellow-100: #fef3c7;
+    --yellow-500: #f59e0b;
+    
+    /* Semantic colors */
+    --bg-primary: var(--white);
+    --bg-secondary: var(--gray-50);
+    --bg-tertiary: var(--gray-100);
+    --border-color: var(--gray-200);
+    --text-primary: var(--gray-900);
+    --text-secondary: var(--gray-600);
+    --text-muted: var(--gray-500);
+    
+    /* Shadows */
+    --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    
+    /* Spacing */
+    --header-height: 60px;
+    --nav-height: 56px;
 }
 
-/* Base Styles */
+/* Reset and Base Styles */
 * {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, sans-serif;
-  background-color: var(--bg-secondary);
-  color: var(--text-primary);
-  line-height: 1.5;
-  /* MacBook Retina Display Optimierungen */
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    line-height: 1.6;
+    overflow-x: hidden;
 }
 
-/* Main Container */
 .his-container {
-  min-height: 100vh;
-  background-color: var(--bg-secondary);
-  display: flex;
-  flex-direction: column;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
 }
 
-/* Header/Navigation Bar - Flat Design */
+/* Header */
 .his-header {
-  background-color: var(--primary-blue);
-  color: var(--white);
-  padding: 16px 40px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  box-shadow: var(--shadow-md);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  min-height: 64px;
+    background-color: var(--primary-blue);
+    color: var(--white);
+    padding: 0 40px;
+    height: var(--header-height);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: var(--shadow-md);
+    position: relative;
+    z-index: 100;
+}
+
+.his-header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
 }
 
 .his-logo {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--white);
+    font-size: 20px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.his-logo .icon {
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.his-menu-button {
+    background: none;
+    border: none;
+    color: var(--white);
+    font-size: 14px;
+    font-weight: 500;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background-color 0.2s ease;
+}
+
+.his-menu-button .icon {
+    width: 18px;
+    height: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.his-menu-button:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.his-header-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 14px;
+}
+
+.his-datetime {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.his-datetime .icon {
+    width: 18px;
+    height: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .his-user-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  color: var(--white);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
 }
 
-.his-user-name {
-  font-weight: 600;
+.his-user-info .icon {
+    width: 18px;
+    height: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
-.his-user-role {
-  color: var(--primary-blue-light);
-  font-size: 12px;
-}
-
-/* Tab Navigation */
+/* Navigation Tabs */
 .his-nav-tabs {
-  background-color: var(--bg-primary);
-  border-bottom: 1px solid var(--border-color);
-  padding: 0 40px;
-  display: flex;
-  min-height: 50px;
+    background-color: var(--bg-primary);
+    border-bottom: 1px solid var(--border-color);
+    padding: 0 40px;
+    display: flex;
+    gap: 0;
+    min-height: var(--nav-height);
 }
 
 .his-nav-tab {
-  display: flex;
-  align-items: center;
-  padding: 12px 20px;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  background: none;
-  border: none;
-  cursor: pointer;
-  border-bottom: 3px solid transparent;
-  transition: all 0.2s ease;
-  gap: 8px;
-}
-
-.his-nav-tab:hover {
-  color: var(--primary-blue);
-  background-color: var(--primary-blue-bg);
+    background: none;
+    border: none;
+    padding: 18px 24px;
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    transition: all 0.2s ease;
+    position: relative;
+    min-width: 140px;
 }
 
 .his-nav-tab.active {
-  color: var(--primary-blue);
-  border-bottom-color: var(--primary-blue);
-  background-color: var(--primary-blue-bg);
+    color: var(--primary-blue);
+    border-bottom-color: var(--primary-blue);
+    background-color: var(--primary-blue-bg);
 }
 
-.his-tab-icon {
-  font-size: 16px;
+.his-nav-tab:hover:not(.active) {
+    color: var(--text-primary);
+    background-color: var(--bg-tertiary);
 }
 
-/* Main Content */
-.his-main {
-  flex: 1;
-  overflow-y: auto;
-}
-
+/* Content Area */
 .his-content {
-  padding: 24px 40px;
-  max-width: none; /* Entfernt die Breitenbegrenzung */
-  margin: 0;
-  width: 100%;
-  min-height: calc(100vh - 114px); /* Header + Nav Höhe abziehen */
+    padding: 32px 40px;
+    max-width: 1920px;
+    margin: 0 auto;
+    width: 100%;
 }
 
-/* Section Headers */
+/* Section Header */
 .his-section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 32px;
 }
 
 .his-section-title {
-  font-size: 24px;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--text-primary);
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 16px;
 }
 
 .his-section-count {
-  color: var(--text-secondary);
-  font-weight: 400;
-  font-size: 18px;
-  margin-left: 8px;
+    color: var(--text-secondary);
+    font-weight: 400;
 }
 
 .his-section-actions {
-  display: flex;
-  gap: 8px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.his-section-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-secondary);
 }
 
 /* Toolbar */
 .his-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-  gap: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    gap: 20px;
 }
 
-/* Search */
+.his-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: nowrap;
+}
+
 .his-search-container {
-  display: flex;
-  align-items: center;
-  background-color: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  overflow: hidden;
-  min-width: 400px;
-  height: 40px;
+    display: flex;
+    align-items: center;
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 0 16px;
+    min-width: 400px;
+    height: 44px;
 }
 
 .his-search-input {
-  border: none;
-  outline: none;
-  padding: 8px 16px;
-  font-size: 14px;
-  flex: 1;
-  background: transparent;
-  color: var(--text-primary);
+    border: none;
+    outline: none;
+    padding: 12px 10px;
+    font-size: 15px;
+    flex: 1;
+    background: transparent;
 }
 
 .his-search-input::placeholder {
-  color: var(--text-muted);
+    color: var(--text-secondary);
 }
 
-/* Buttons */
+.his-search-icon {
+    color: var(--text-secondary);
+    width: 16px;
+    height: 16px;
+}
+
+/* Action Buttons */
 .his-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 8px 16px;
-  font-size: 14px;
-  font-weight: 500;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  text-decoration: none;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  min-height: 36px;
-}
-
-.his-btn:hover {
-  background-color: var(--bg-tertiary);
-  border-color: var(--gray-300);
-  transform: translateY(-1px);
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    border: 1px solid transparent;
+    height: 44px;
 }
 
 .his-btn-primary {
-  background-color: var(--primary-blue);
-  color: var(--white);
-  border-color: var(--primary-blue);
+    background-color: var(--primary-blue);
+    color: var(--white);
+    border-color: var(--primary-blue);
 }
 
 .his-btn-primary:hover {
-  background-color: var(--primary-blue-hover);
-  border-color: var(--primary-blue-hover);
+    background-color: var(--primary-blue-hover);
+    border-color: var(--primary-blue-hover);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
 }
 
 .his-btn-secondary {
-  background-color: var(--bg-secondary);
-  color: var(--text-secondary);
-  border-color: var(--border-color);
+    background-color: var(--bg-primary);
+    color: var(--text-secondary);
+    border-color: var(--border-color);
 }
 
-/* Lists/Tables */
+.his-btn-secondary:hover {
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+    border-color: var(--gray-300);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow);
+}
+
+/* Table Styles */
 .his-list-container {
-  background-color: var(--bg-primary);
-  border-radius: 8px;
-  box-shadow: var(--shadow);
-  overflow: hidden;
-  border: 1px solid var(--border-color);
-  width: 100%;
+    background-color: var(--bg-primary);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    border: 1px solid var(--border-color);
 }
 
 .his-list {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 14px;
-  table-layout: fixed; /* Ermöglicht gleichmäßige Spaltenverteilung */
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
 }
 
-/* Spaltenbreiten für optimale Nutzung */
-.his-list th:nth-child(1), /* Name */
-.his-list td:nth-child(1) {
-  width: 25%;
-  min-width: 200px;
-}
-
-.his-list th:nth-child(2), /* KVNR */
-.his-list td:nth-child(2) {
-  width: 15%;
-  min-width: 130px;
-}
-
-.his-list th:nth-child(3), /* Geburtsdatum */
-.his-list td:nth-child(3) {
-  width: 12%;
-  min-width: 110px;
-}
-
-.his-list th:nth-child(4), /* Geschlecht */
-.his-list td:nth-child(4) {
-  width: 10%;
-  min-width: 100px;
-  text-align: center;
-}
-
-.his-list th:nth-child(5), /* Versicherung */
-.his-list td:nth-child(5) {
-  width: 25%;
-  min-width: 180px;
-}
-
-.his-list th:nth-child(6), /* Status */
-.his-list td:nth-child(6) {
-  width: 13%;
-  min-width: 120px;
-  text-align: center;
-}
-
-/* TEST: Sehr kleine Paddings für sichtbaren Effekt */
 .his-list th {
-  background-color: var(--bg-secondary);
-  color: var(--text-secondary);
-  font-weight: 600;
-  padding: 4px 16px !important; /* Sehr klein für Test */
-  text-align: left;
-  border-bottom: 1px solid var(--border-color);
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  line-height: 1.2; /* Kompakte Zeilenhöhe */
+    background-color: var(--bg-tertiary);
+    padding: 16px 20px;
+    text-align: left;
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-color);
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    position: relative;
+    user-select: none;
 }
 
 .his-list td {
-  padding: 4px 16px !important; /* Sehr klein für Test */
-  border-bottom: 1px solid var(--gray-100);
-  color: var(--text-primary);
-  line-height: 1.3; /* Kompakte Zeilenhöhe */
+    padding: 18px 20px;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 15px;
+    vertical-align: middle;
+    transition: all 0.2s ease;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .his-list-row {
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-  height: auto; /* Automatische Höhe */
+    transition: all 0.2s ease;
+    cursor: pointer;
 }
 
 .his-list-row:hover {
-  background-color: var(--bg-secondary);
+    background-color: var(--primary-blue-bg);
 }
 
-.his-list-row:last-child td {
-  border-bottom: none;
+.his-list-row.expanded {
+    background-color: var(--primary-blue-bg);
+    border-bottom: none;
 }
 
-.his-cell-primary {
-  font-weight: 600;
-  color: var(--text-primary);
+/* Icon Column */
+.his-icon-column {
+    width: 60px;
+    text-align: center;
+    padding: 18px 10px !important;
 }
 
-/* KVNR Styling */
-.his-kvnr {
-  font-family: "SF Mono", Monaco, "Cascadia Code", "Consolas", monospace;
-  font-size: 13px;
-  background-color: var(--primary-blue-bg);
-  padding: 4px 8px;
-  border-radius: 4px;
-  letter-spacing: 0.5px;
-  color: var(--primary-blue);
-  font-weight: 600;
-  border: 1px solid var(--primary-blue-light);
+.his-expand-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    background-color: var(--primary-blue-light);
+    color: var(--primary-blue);
+    font-size: 12px;
+    font-weight: bold;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.his-expand-icon:hover {
+    background-color: var(--primary-blue);
+    color: var(--white);
+}
+
+.his-expand-icon.expanded {
+    background-color: var(--primary-blue);
+    color: var(--white);
+    transform: rotate(90deg);
+}
+
+/* Child Row Styles */
+.his-child-row {
+    background-color: var(--primary-blue-bg);
+    border-bottom: 1px solid var(--border-color);
+    display: none;
+}
+
+.his-child-row.show {
+    display: table-row;
+}
+
+.his-child-row td {
+    padding: 12px 20px 12px 50px;
+    font-size: 14px;
+    color: var(--text-secondary);
+    border-left: 3px solid var(--primary-blue);
 }
 
 /* Status Badges */
 .his-status {
-  display: inline-flex;
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.his-status.active {
+    background-color: var(--green-100);
+    color: var(--green-700);
+}
+
+.his-status.in_progress {
+    background-color: var(--yellow-100);
+    color: var(--yellow-500);
+}
+
+.his-status.completed {
+    background-color: var(--green-100);
+    color: var(--green-600);
+}
+
+.his-status.cancelled {
+    background-color: var(--red-100);
+    color: var(--red-600);
+}
+
+/* Priority Indicators */
+.his-priority {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 8px;
+}
+
+.his-priority.high {
+    background-color: var(--red-500);
+}
+
+.his-priority.medium {
+    background-color: var(--yellow-500);
+}
+
+.his-priority.low {
+    background-color: var(--green-500);
+}
+
+/* Icons */
+.icon::before {
+    font-style: normal;
+    font-variant: normal;
+    text-rendering: auto;
+    -webkit-font-smoothing: antialiased;
+}
+
+.icon-hospital::before {
+    content: "🏥";
+}
+
+.icon-calendar::before {
+    content: "📅";
+}
+
+.icon-user::before {
+    content: "👤";
+}
+
+.icon-search::before {
+    content: "🔍";
+}
+
+.icon-plus::before {
+    content: "+";
+    font-weight: bold;
+    color: var(--white);
+}
+
+.icon-settings::before {
+    content: "⚙";
+    font-weight: bold;
+    color: var(--text-secondary);
+}
+
+.icon-export::before {
+    content: "📤";
+    font-weight: bold;
+    color: var(--text-secondary);
+}
+
+.icon-filter::before {
+    content: "🔽";
+    font-weight: bold;
+    color: var(--text-secondary);
+}
+
+.icon-react::before {
+    content: "⚛";
+    font-weight: bold;
+    color: var(--text-secondary);
+}
+
+.icon-refresh::before {
+    content: "↻";
+    font-weight: bold;
+    color: var(--text-secondary);
+}
+
+.icon-chevron::before {
+    content: "▶";
+    font-size: 10px;
+}
+
+.icon-chevron-left::before {
+    content: "‹";
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.icon-chevron-right::before {
+    content: "›";
+    font-size: 16px;
+    font-weight: bold;
+}
+
+/* Paginator Styles */
+.his-paginator-container {
+    margin-top: 32px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border-color);
+}
+
+.his-paginator {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 24px;
+    flex-wrap: wrap;
+}
+
+.his-paginator-info {
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.his-items-info strong {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.his-paginator-controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.his-paginator-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    height: 36px;
+}
+
+.his-paginator-btn:hover:not(:disabled) {
+    background-color: var(--bg-tertiary);
+    border-color: var(--primary-blue);
+}
+
+.his-paginator-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.his-paginator-pages {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.his-paginator-page {
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.his-paginator-page:hover:not(.active) {
+    background-color: var(--bg-tertiary);
+    border-color: var(--primary-blue);
+}
+
+.his-paginator-page.active {
+    background-color: var(--primary-blue);
+    border-color: var(--primary-blue);
+    color: var(--white);
+}
+
+.his-paginator-ellipsis {
+    color: var(--text-secondary);
+    padding: 0 8px;
+    font-size: 14px;
+}
+
+.his-paginator-settings {
+    display: flex;
+    align-items: center;
+}
+
+.his-paginator-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.his-paginator-select {
+    padding: 6px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 14px;
+    cursor: pointer;
+    min-width: 70px;
+}
+
+.his-paginator-select:focus {
+    outline: none;
+    border-color: var(--primary-blue);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+/* Configuration Panel */
+.his-config-panel {
+    position: fixed;
+    right: -400px;
+    top: 0;
+    width: 400px;
+    height: 100vh;
+    background-color: var(--bg-primary);
+    border-left: 1px solid var(--border-color);
+    box-shadow: var(--shadow-md);
+    transition: right 0.3s ease;
+    z-index: 200;
+    overflow-y: auto;
+}
+
+.his-config-panel.open {
+    right: 0;
+}
+
+.his-config-header {
+    padding: 20px;
+    border-bottom: 1px solid var(--border-color);
+    background-color: var(--bg-tertiary);
+}
+
+.his-config-content {
+    padding: 20px;
+}
+
+/* Loading and Error States */
+.his-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    padding: 3rem;
+    color: var(--text-secondary);
+}
+
+.loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid var(--gray-200);
+    border-top: 4px solid var(--primary-blue);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.his-error-message {
+    background: #fff5f5;
+    border: 1px solid #fed7d7;
+    color: #c53030;
+    padding: 1rem 1.25rem;
+    border-radius: 0.5rem;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    box-shadow: 0 2px 8px rgba(197, 48, 48, 0.1);
+}
+
+.his-empty-state {
+    text-align: center;
+    padding: 3rem 2rem;
+    color: var(--text-secondary);
+}
+
+.empty-icon {
+    font-size: 4rem;
+    display: block;
+    margin-bottom: 1rem;
+    opacity: 0.7;
+}
+
+/* Responsive Design */
+@media (max-width: 1920px) {
+    .his-content {
+        padding: 24px 32px;
+    }
+}
+
+@media (max-width: 1600px) {
+    .his-content {
+        padding: 20px 24px;
+    }
+    
+    .his-section-title {
+        font-size: 20px;
+    }
+}
+
+@media (max-width: 1200px) {
+    .his-content {
+        padding: 16px;
+    }
+    
+    .his-list-container {
+        overflow-x: auto;
+    }
+    
+    .his-list {
+        min-width: 1000px;
+    }
+
+    .his-config-panel {
+        width: 100%;
+        right: -100%;
+    }
+}
+
+@media (max-width: 768px) {
+    .his-header {
+        padding: 12px 16px;
+    }
+    
+    .his-nav-tabs {
+        padding: 0 16px;
+        overflow-x: auto;
+    }
+    
+    .his-section-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+    
+    .his-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    .his-toolbar-left {
+        flex-direction: row;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .his-search-container {
+        min-width: auto;
+        flex: 1;
+    }
+
+    .his-paginator {
+        flex-direction: column;
+        gap: 16px;
+        align-items: stretch;
+    }
+    
+    .his-paginator-controls {
+        justify-content: center;
+    }
+    
+    .his-paginator-pages {
+        gap: 2px;
+    }
+    
+    .his-paginator-page {
+        width: 32px;
+        height: 32px;
+        font-size: 13px;
+    }
+    
+    .his-paginator-btn {
+        font-size: 13px;
+        padding: 6px 12px;
+        height: 32px;
+    }
+    
+    .his-paginator-settings {
+        justify-content: center;
+    }
+}
+
+/* Focus styles for accessibility */
+.his-search-input:focus {
+    outline: none;
+    border-color: var(--primary-blue);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.his-nav-tab:focus {
+    outline: 2px solid var(--primary-blue);
+    outline-offset: 2px;
+}
+
+.his-btn:focus {
+    outline: 2px solid var(--primary-blue);
+    outline-offset: 2px;
+}
+
+/* Print styles */
+@media print {
+    .his-header,
+    .his-nav-tabs,
+    .his-toolbar,
+    .his-paginator-container,
+    .his-config-panel {
+        display: none !important;
+    }
+
+    .his-content {
+        padding: 0;
+        max-width: none;
+    }
+
+    .his-list-container {
+        box-shadow: none;
+        border: 1px solid #000;
+    }
+
+    .his-list th,
+    .his-list td {
+        border: 1px solid #000;
+        padding: 8px;
+    }
+
+    body {
+        background: white !important;
+        color: black !important;
+    }
+}0.7);
+  display: flex;
   align-items: center;
-  padding: 4px 12px;
-  border-radius: 16px;
-  font-size: 11px;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.3s ease;
+  backdrop-filter: blur(5px);
+}
+
+.drill-down-modal {
+  background: white;
+  border-radius: 1rem;
+  width: 90%;
+  max-width: 1200px;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: slideUp 0.3s ease;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+
+.drill-down-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem 2rem;
+  border-bottom: 1px solid #ecf0f1;
+  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+  border-radius: 1rem 1rem 0 0;
+}
+
+.drill-down-header h2 {
+  color: #2c3e50;
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 600;
+}
+
+.close-btn {
+  background: #e74c3c;
+  color: white;
+  border: none;
+  padding: 0.5rem;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 1rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(231, 76, 60, 0.3);
+}
+
+.close-btn:hover {
+  background: #c0392b;
+  transform: rotate(90deg);
+}
+
+.patient-summary {
+  padding: 1.5rem 2rem;
+  border-bottom: 1px solid #ecf0f1;
+  background: #fafbfc;
+}
+
+.patient-info-card {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 0.75rem;
+  border-left: 4px solid #3498db;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+}
+
+.patient-info-card h3 {
+  color: #2c3e50;
+  margin-bottom: 1rem;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+}
+
+.info-grid div {
+  padding: 0.5rem;
+  background: #f8f9fa;
+  border-radius: 0.5rem;
+  border: 1px solid #e9ecef;
+}
+
+.encounters-content {
+  padding: 2rem;
+}
+
+.encounters-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 1.5rem;
+}
+
+/* ===== ENCOUNTER CARD STYLES ===== */
+.encounter-card {
+  background: white;
+  border: 1px solid #e9ecef;
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+  position: relative;
+  overflow: hidden;
+}
+
+.encounter-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: linear-gradient(135deg, #3498db, #2980b9);
+}
+
+.encounter-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+  border-color: #3498db;
+}
+
+.encounter-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #f1f3f4;
+}
+
+.encounter-type {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.type-icon {
+  font-size: 1.5rem;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+}
+
+.type-text {
+  font-weight: 600;
+  color: #2c3e50;
+  font-size: 1rem;
+}
+
+.encounter-status {
+  padding: 0.4rem 0.8rem;
+  color: white;
+  border-radius: 1.5rem;
+  font-size: 0.8rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
 }
 
-.his-status-active {
-  background-color: var(--success-green-light);
-  color: var(--success-green);
-  border: 1px solid var(--success-green);
+.encounter-details {
+  margin-bottom: 1.25rem;
 }
 
-.his-status-inactive {
-  background-color: var(--danger-red-light);
-  color: var(--danger-red);
-  border: 1px solid var(--danger-red);
+.detail-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.75rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #f8f9fa;
 }
 
-.his-status-planned {
-  background-color: var(--primary-blue-light);
-  color: var(--primary-blue);
-  border: 1px solid var(--primary-blue);
+.detail-item:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
 }
 
-.his-status-progress {
-  background-color: var(--warning-orange-light);
-  color: var(--warning-orange);
-  border: 1px solid var(--warning-orange);
+.label {
+  font-weight: 600;
+  color: #6c757d;
+  min-width: 120px;
+  font-size: 0.9rem;
 }
 
-.his-status-completed {
-  background-color: var(--success-green-light);
-  color: var(--success-green);
-  border: 1px solid var(--success-green);
+.value {
+  color: #2c3e50;
+  text-align: right;
+  flex: 1;
+  margin-left: 1rem;
+  font-weight: 500;
 }
 
-.his-status-cancelled {
-  background-color: var(--danger-red-light);
-  color: var(--danger-red);
-  border: 1px solid var(--danger-red);
+.billing-context {
+  background: linear-gradient(135deg, #e8f5e8, #d4edda);
+  color: #155724;
+  padding: 0.3rem 0.6rem;
+  border-radius: 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid #c3e6cb;
 }
 
-.his-status-default {
-  background-color: var(--bg-tertiary);
-  color: var(--text-muted);
-  border: 1px solid var(--border-color);
+.encounter-footer {
+  border-top: 1px solid #f1f3f4;
+  padding-top: 1rem;
+  font-size: 0.8rem;
+  color: #6c757d;
 }
 
-/* Loading Spinner */
-.his-loading {
+.encounter-id {
+  margin-bottom: 0.4rem;
+  font-weight: 500;
+}
+
+.created-at {
+  font-style: italic;
+}
+
+/* ===== LOADING AND ERROR STATES ===== */
+.loading-spinner {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 64px;
-  gap: 20px;
+  gap: 1rem;
+  padding: 3rem;
+  color: #6c757d;
 }
 
-.his-spinner {
+.spinner {
   width: 40px;
   height: 40px;
-  border: 4px solid var(--bg-tertiary);
-  border-top: 4px solid var(--primary-blue);
+  border: 4px solid #f1f3f4;
+  border-top: 4px solid #3498db;
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
 
+.error-message {
+  background: #fff5f5;
+  border: 1px solid #fed7d7;
+  color: #c53030;
+  padding: 1rem 1.25rem;
+  border-radius: 0.5rem;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  box-shadow: 0 2px 8px rgba(197, 48, 48, 0.1);
+}
+
+.error-icon {
+  font-size: 1.2rem;
+}
+
+.empty-state, .empty-encounters {
+  text-align: center;
+  padding: 3rem 2rem;
+  color: #6c757d;
+}
+
+.empty-icon {
+  font-size: 4rem;
+  display: block;
+  margin-bottom: 1rem;
+  opacity: 0.7;
+}
+
+.empty-encounters h3 {
+  color: #495057;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+
+.empty-encounters p {
+  color: #6c757d;
+  line-height: 1.5;
+}
+
+/* ===== ANIMATIONS ===== */
+@keyframes fadeIn {
+  from { 
+    opacity: 0; 
+  }
+  to { 
+    opacity: 1; 
+  }
+}
+
+@keyframes slideUp {
+  from { 
+    opacity: 0;
+    transform: translateY(30px) scale(0.95);
+  }
+  to { 
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 @keyframes spin {
-  0% {
-    transform: rotate(0deg);
+  0% { 
+    transform: rotate(0deg); 
   }
-  100% {
-    transform: rotate(360deg);
-  }
-}
-
-.his-loading-text {
-  color: var(--text-secondary);
-  font-size: 16px;
-  font-weight: 500;
-}
-
-/* Error Messages */
-.his-error {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px;
-  background-color: var(--danger-red-light);
-  border: 1px solid var(--danger-red);
-  border-radius: 8px;
-  margin-bottom: 20px;
-}
-
-.his-error-text {
-  color: var(--danger-red);
-  font-size: 14px;
-  font-weight: 500;
-}
-
-/* Dashboard Specific */
-.his-dashboard {
-  display: flex;
-  flex-direction: column;
-  gap: 32px;
-}
-
-.his-stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 24px;
-  margin-bottom: 32px;
-  max-width: none;
-}
-
-/* Für FullHD: 4 Spalten auf großen Bildschirmen */
-@media (min-width: 1400px) {
-  .his-stats-grid {
-    grid-template-columns: repeat(4, 1fr);
+  100% { 
+    transform: rotate(360deg); 
   }
 }
 
-.his-stat-card {
-  background-color: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  padding: 24px;
-  text-align: center;
-  box-shadow: var(--shadow);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.his-stat-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
-}
-
-.his-stat-number {
-  font-size: 36px;
-  font-weight: 700;
-  color: var(--primary-blue);
-  margin-bottom: 8px;
-  line-height: 1;
-}
-
-.his-stat-label {
-  font-size: 14px;
-  color: var(--text-secondary);
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-/* Health Status */
-.his-health-status {
-  background-color: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  padding: 24px;
-  margin-bottom: 32px;
-  box-shadow: var(--shadow);
-}
-
-.his-health-status h3 {
-  margin-bottom: 20px;
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.his-health-indicators {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 20px;
-}
-
-.his-health-indicator {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 14px;
-  font-weight: 500;
-  padding: 8px 16px;
-  border-radius: 8px;
-  background-color: var(--bg-secondary);
-}
-
-.his-health-indicator.healthy {
-  color: var(--success-green);
-  background-color: var(--success-green-light);
-}
-
-.his-health-indicator.unhealthy {
-  color: var(--danger-red);
-  background-color: var(--danger-red-light);
-}
-
-.his-health-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background-color: currentColor;
-}
-
-/* Detail Pages */
-.his-detail-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
-  gap: 32px;
-  margin-bottom: 32px;
-}
-
-/* FullHD: Nutze komplette Breite für Detail-Cards */
-@media (min-width: 1400px) {
-  .his-detail-grid {
-    grid-template-columns: repeat(2, 1fr);
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
   }
 }
 
-/* FullHD: Größere Tables */
-@media (min-width: 1400px) {
-  .his-list th,
-  .his-list td {
-    padding: 18px 24px;
-  }
-
-  .his-list {
-    font-size: 15px;
-  }
-
-  .his-list th {
-    font-size: 13px;
+/* ===== RESPONSIVE DESIGN ===== */
+@media (max-width: 1200px) {
+  .encounters-grid {
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   }
 }
 
-.his-detail-card {
-  background-color: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: var(--shadow);
-}
-
-.his-detail-card h3 {
-  margin-bottom: 20px;
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--text-primary);
-  border-bottom: 1px solid var(--border-color);
-  padding-bottom: 12px;
-}
-
-.his-detail-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--gray-100);
-}
-
-.his-detail-row:last-child {
-  border-bottom: none;
-}
-
-.his-detail-row label {
-  font-weight: 500;
-  color: var(--text-secondary);
-  font-size: 14px;
-  min-width: 140px;
-}
-
-.his-detail-row span {
-  color: var(--text-primary);
-  font-size: 14px;
-  text-align: right;
-  font-weight: 500;
-}
-
-/* Settings Page */
-.his-settings-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-  gap: 32px;
-}
-
-/* FullHD Optimierungen */
-@media (min-width: 1400px) {
-  .his-settings-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-
-  /* Größere Padding für FullHD */
-  .his-content {
-    padding: 32px 60px;
-  }
-
-  .his-header {
-    padding: 20px 60px;
-  }
-
-  .his-nav-tabs {
-    padding: 0 60px;
-  }
-
-  /* Stat Cards größer auf FullHD */
-  .his-stat-card {
-    padding: 32px;
-  }
-
-  .his-stat-number {
-    font-size: 42px;
-  }
-
-  .his-stat-label {
-    font-size: 16px;
-  }
-
-  /* Search breiter auf FullHD */
-  .his-search-container {
-    min-width: 500px;
-  }
-}
-
-/* MacBook Retina Display Spezifische Anpassungen */
-@media (-webkit-min-device-pixel-ratio: 2) and (min-width: 1400px),
-  (min-resolution: 192dpi) and (min-width: 1400px) {
-  /* Schärfere Schriften auf Retina */
-  body {
-    font-size: 14px;
-  }
-
-  /* Content nutzt komplette Breite auf Retina MacBooks */
-  .his-content {
-    padding: 40px 60px; /* Reduzierte Seitenabstände */
-    max-width: none;
-  }
-
-  .his-header {
-    padding: 24px 60px;
-  }
-
-  .his-nav-tabs {
-    padding: 0 60px;
-  }
-
-  /* Größere Tabellenschrift auf Retina */
-  .his-list {
-    font-size: 16px;
-  }
-
-  .his-list th {
-    font-size: 14px;
-    padding: 14px 20px; /* Reduziert von 20px 28px */
-  }
-
-  .his-list td {
-    padding: 12px 20px; /* Reduziert von 20px 28px */
-  }
-
-  /* Erweiterte Spaltenbreiten für große Displays */
-  .his-list th:nth-child(1),
-  .his-list td:nth-child(1) {
-    width: 30%;
-    min-width: 250px;
-  }
-
-  .his-list th:nth-child(5),
-  .his-list td:nth-child(5) {
-    width: 30%;
-    min-width: 220px;
-  }
-
-  /* Dashboard Stats größer auf Retina */
-  .his-stat-number {
-    font-size: 48px;
-  }
-
-  .his-stat-label {
-    font-size: 18px;
-  }
-
-  .his-stat-card {
-    padding: 40px;
-  }
-
-  /* Section Headers größer */
-  .his-section-title {
-    font-size: 28px;
-  }
-
-  .his-section-count {
-    font-size: 20px;
-  }
-
-  /* Buttons größer und deutlicher */
-  .his-btn {
-    padding: 10px 20px;
-    font-size: 15px;
-    min-height: 40px;
-  }
-
-  /* Search größer */
-  .his-search-container {
-    min-width: 500px; /* Reduziert von 600px */
-    height: 44px;
-  }
-
-  .his-search-input {
-    font-size: 16px;
-    padding: 10px 20px;
-  }
-
-  /* KVNR größer und deutlicher */
-  .his-kvnr {
-    font-size: 14px;
-    padding: 6px 12px;
-  }
-
-  /* Status Badges größer */
-  .his-status {
-    padding: 6px 16px;
-    font-size: 12px;
-  }
-}
-
-/* MacBook Pro 16" (3072x1920) und größer */
-@media (-webkit-min-device-pixel-ratio: 2) and (min-width: 1600px),
-  (min-resolution: 192dpi) and (min-width: 1600px) {
-  .his-content {
-    max-width: none;
-    padding: 48px 80px; /* Reduziert von 100px */
-  }
-
-  .his-header {
-    padding: 28px 80px;
-  }
-
-  .his-nav-tabs {
-    padding: 0 80px;
-  }
-
-  /* 5 Dashboard-Karten auf sehr breiten Displays */
-  .his-stats-grid {
-    grid-template-columns: repeat(5, 1fr);
-    gap: 32px;
-  }
-
-  /* Noch größere Spalten für sehr breite Displays */
-  .his-list th:nth-child(1),
-  .his-list td:nth-child(1) {
-    width: 35%;
-    min-width: 300px;
-  }
-
-  .his-list th:nth-child(5),
-  .his-list td:nth-child(5) {
-    width: 35%;
-    min-width: 280px;
-  }
-}
-
-.his-api-endpoints {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.his-endpoint {
-  font-size: 14px;
-  color: var(--text-primary);
-  padding: 8px 12px;
-  background-color: var(--bg-secondary);
-  border-radius: 6px;
-}
-
-.his-endpoint strong {
-  color: var(--primary-blue);
-  min-width: 140px;
-  display: inline-block;
-}
-
-/* Empty State */
-.his-empty-state {
-  text-align: center;
-  padding: 48px;
-  color: var(--text-muted);
-  font-style: italic;
-  font-size: 16px;
-}
-
-/* Responsive Design */
 @media (max-width: 768px) {
-  .his-header {
-    padding: 12px 20px;
+  .header-content {
     flex-direction: column;
-    gap: 12px;
-    min-height: auto;
+    gap: 1rem;
+    text-align: center;
   }
 
-  .his-nav-tabs {
-    padding: 0 20px;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+  .stats-section {
+    order: 2;
   }
 
-  .his-nav-tab {
-    white-space: nowrap;
-    padding: 12px 16px;
+  .user-section {
+    order: 3;
+    justify-content: center;
   }
 
-  .his-content {
-    padding: 20px;
+  .main-content {
+    padding: 1rem;
   }
 
-  .his-section-header {
+  .patient-list {
+    padding: 1rem;
+  }
+
+  .patient-list h2 {
+    font-size: 1.5rem;
+  }
+
+  .drill-down-modal {
+    width: 95%;
+    margin: 1rem;
+    max-height: 85vh;
+  }
+
+  .drill-down-header {
+    padding: 1rem;
+    flex-direction: column;
+    gap: 1rem;
+    text-align: center;
+  }
+
+  .drill-down-header h2 {
+    font-size: 1.3rem;
+  }
+
+  .patient-summary {
+    padding: 1rem;
+  }
+
+  .encounters-content {
+    padding: 1rem;
+  }
+
+  .encounters-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .patient-table {
+    font-size: 0.9rem;
+  }
+
+  .patient-table th,
+  .patient-table td {
+    padding: 0.75rem 0.5rem;
+  }
+
+  .encounter-card {
+    padding: 1rem;
+  }
+
+  .detail-item {
     flex-direction: column;
     align-items: flex-start;
-    gap: 16px;
+    gap: 0.25rem;
   }
 
-  .his-toolbar {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .his-search-container {
-    min-width: auto;
-    width: 100%;
-  }
-
-  .his-list-container {
-    overflow-x: auto;
-  }
-
-  .his-stats-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .his-detail-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .his-settings-grid {
-    grid-template-columns: 1fr;
+  .value {
+    text-align: left;
+    margin-left: 0;
   }
 }
 
 @media (max-width: 480px) {
-  .his-stats-grid {
-    grid-template-columns: 1fr;
+  .logo-section h1 {
+    font-size: 1.5rem;
   }
 
-  .his-header {
-    padding: 12px 16px;
+  .patient-table th,
+  .patient-table td {
+    padding: 0.5rem 0.25rem;
+    font-size: 0.8rem;
   }
 
-  .his-content {
-    padding: 16px;
+  .drill-down-modal {
+    width: 98%;
+    margin: 0.5rem;
+    border-radius: 0.5rem;
+  }
+
+  .encounter-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .encounter-status {
+    align-self: flex-end;
   }
 }
 
+/* ===== ACCESSIBILITY ===== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Focus styles for keyboard navigation */
+.patient-row:focus-within,
+.drill-down-btn:focus,
+.refresh-btn:focus,
+.close-btn:focus {
+  outline: 2px solid #3498db;
+  outline-offset: 2px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .patient-row:hover {
+    background: #000;
+    color: #fff;
+  }
+  
+  .encounter-card {
+    border: 2px solid #000;
+  }
+}
+
+/* ===== PRINT STYLES ===== */
+@media print {
+  .app-header,
+  .drill-down-btn,
+  .refresh-btn,
+  .close-btn {
+    display: none !important;
+  }
+
+  .drill-down-overlay {
+    position: static;
+    background: none;
+  }
+
+  .drill-down-modal {
+    box-shadow: none;
+    max-height: none;
+    width: 100%;
+  }
+
+  .patient-table,
+  .encounter-card {
+    break-inside: avoid;
+  }
+
+  body {
+    background: white !important;
+  }
+}
+
+/* ===== DARK MODE SUPPORT (for future implementation) ===== */
+@media (prefers-color-scheme: dark) {
+  /* This section can be uncommented for dark mode support */
+  /*
+  body {
+    background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+    color: #ecf0f1;
+  }
+
+  .patient-list,
+  .drill-down-modal,
+  .patient-info-card {
+    background: #34495e;
+    color: #ecf0f1;
+  }
+
+  .patient-table th {
+    background: linear-gradient(135deg, #3498db, #2980b9);
+  }
+
+  .patient-row {
+    background: #34495e;
+    border-bottom-color: #2c3e50;
+  }
+
+  .patient-row:hover {
+    background: #2c3e50;
+  }
+  */
+}
 ```
 
 ### File: ./src/index.css
