@@ -1,588 +1,136 @@
 #!/bin/bash
 
-# HIS Test-Analyse & Frontend-Optimierung
-# Basierend auf den umfassenden Test-Ergebnissen
+# ENCOUNTER VERIFICATION TEST
+# ===========================
+# Prüfe ob Frontend echte oder Dummy-Daten anzeigt
 
 AUTH_HEADER="Authorization: Basic $(echo -n 'admin:dev-password' | base64)"
-BASE_URL="http://localhost:8080"
 
-echo "🔍 HIS Test-Analyse & Frontend-Optimierung"
-echo "=========================================="
+echo "🔍 ENCOUNTER VERIFICATION TEST"
+echo "=============================="
+
+# 1. Test Success Test Patient direkt
+PATIENT_ID="2c74c930-516c-4135-b03e-7a9fa33cca72"
+
+echo "1. Direct API Test für Success Test Patient:"
+echo "Patient ID: $PATIENT_ID"
 echo ""
 
-# Farbkodierung
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+# Direkte API Call wie Frontend
+DIRECT_ENCOUNTERS=$(curl -s -H "$AUTH_HEADER" \
+  "http://localhost:8080/api/v1/encounters/patient/$PATIENT_ID?page=0&size=10")
 
-# =================================================================
-# 1. ANALYSE DER IDENTIFIZIERTEN PROBLEME
-# =================================================================
+echo "Direct Encounter API Response:"
+echo "$DIRECT_ENCOUNTERS" | jq '.'
 
-echo "1️⃣ PROBLEME AUS DEN TESTS"
-echo "========================="
-
+ENCOUNTER_COUNT=$(echo "$DIRECT_ENCOUNTERS" | jq '.content | length' 2>/dev/null || echo "0")
 echo ""
-echo -e "${RED}❌ IDENTIFIZIERTE PROBLEME:${NC}"
-echo "  1. Patient List API (GET /api/v1/patients) → HTTP 500"
-echo "  2. Encounter Creation → MALFORMED_JSON Error"
-echo "  3. Health Check /actuator/health/db → HTTP 404"
-echo "  4. Pagination API → HTTP 500"
+echo "✅ REAL Encounter Count: $ENCOUNTER_COUNT"
 
-echo ""
-echo -e "${GREEN}✅ FUNKTIONIERENDE FEATURES:${NC}"
-echo "  • Patient Creation (POST) ✓"
-echo "  • Patient Details (GET by ID) ✓"
-echo "  • Patient KVNR Lookup ✓"
-echo "  • Patient Search API ✓"
-echo "  • Patient Soft Delete ✓"
-echo "  • KVNR & Enum Validation ✓"
-echo "  • Error Handling ✓"
-echo "  • Performance (28ms-760ms) ✓"
-
-# =================================================================
-# 2. ENCOUNTER JSON PROBLEM DEBUGGING
-# =================================================================
-
-echo ""
-echo "2️⃣ ENCOUNTER JSON PROBLEM LÖSEN"
-echo "==============================="
-
-echo ""
-echo "Problem: MALFORMED_JSON bei Encounter Creation"
-echo "Testen verschiedener JSON-Formate:"
-
-# Test Patient-ID aus erfolgreichen Tests
-WORKING_PATIENT_ID="d0d3ccf4-285f-4611-a3d7-a6148df3d350"
-
-echo ""
-echo "Test 1: Minimale Encounter-Struktur"
-MINIMAL_ENCOUNTER='{
-  "patientId": "'$WORKING_PATIENT_ID'",
-  "practitionerId": "'$(uuidgen | tr '[:upper:]' '[:lower:]')'",
-  "encounterType": "CONSULTATION",
-  "encounterDate": "'$(date -u +%Y-%m-%dT%H:%M:%S)'"
-}'
-
-echo "Minimal JSON:"
-echo "$MINIMAL_ENCOUNTER" | jq '.'
-
-ENCOUNTER_RESULT=$(curl -s -w "HTTPSTATUS:%{http_code}" \
-  -X POST "$BASE_URL/api/v1/encounters" \
-  -H "Content-Type: application/json" \
-  -H "$AUTH_HEADER" \
-  -d "$MINIMAL_ENCOUNTER")
-
-ENCOUNTER_BODY=$(echo "$ENCOUNTER_RESULT" | sed -E 's/HTTPSTATUS:[0-9]{3}$//')
-ENCOUNTER_STATUS=$(echo "$ENCOUNTER_RESULT" | grep -o "HTTPSTATUS:[0-9]*" | cut -d: -f2)
-
-echo "Response Status: $ENCOUNTER_STATUS"
-if [ "$ENCOUNTER_STATUS" = "201" ]; then
-    echo -e "${GREEN}✅ Minimal Encounter erfolgreich erstellt!${NC}"
-    echo "$ENCOUNTER_BODY" | jq '.'
-    WORKING_ENCOUNTER_ID=$(echo "$ENCOUNTER_BODY" | jq -r '.id')
+if [ "$ENCOUNTER_COUNT" -gt 0 ]; then
+  echo ""
+  echo "2. Encounter Details (REAL DATA):"
+  echo "$DIRECT_ENCOUNTERS" | jq '.content[] | {
+    id: .id[0:8] + "...",
+    type: .type,
+    status: .status,
+    encounterDate: .encounterDate,
+    reason: .reason,
+    billingContext: .billingContext,
+    practitionerId: .practitionerId[0:8] + "..."
+  }'
+  
+  # 3. Prüfe ob Daten von unserem Test-Script stammen
+  echo ""
+  echo "3. Verification - Stammen diese von unserem Test-Script?"
+  
+  # Prüfe nach unserem Test-Grund
+  TEST_REASON_COUNT=$(echo "$DIRECT_ENCOUNTERS" | jq '[.content[] | select(.reason == "Frontend Test - Korrigierte API")] | length' 2>/dev/null || echo "0")
+  
+  if [ "$TEST_REASON_COUNT" -gt 0 ]; then
+    echo "✅ CONFIRMED: Encounters stammen von unserem Test-Script"
+    echo "   Gefunden: $TEST_REASON_COUNT Encounters mit 'Frontend Test - Korrigierte API'"
+  else
+    echo "ℹ️ Encounters sind älter oder von anderem Test"
+  fi
+  
+  # 4. Test letzter Encounter Datum
+  echo ""
+  echo "4. Last Encounter Test (Frontend Logic):"
+  LAST_ENCOUNTER_DATE=$(echo "$DIRECT_ENCOUNTERS" | jq -r '.content[0]?.encounterDate // "null"')
+  LAST_ENCOUNTER_STATUS=$(echo "$DIRECT_ENCOUNTERS" | jq -r '.content[0]?.status // "null"')
+  
+  echo "Frontend würde zeigen:"
+  echo "  - Letzte Begegnung: $LAST_ENCOUNTER_DATE"
+  echo "  - Patient Status: $([ "$LAST_ENCOUNTER_STATUS" = "IN_PROGRESS" ] && echo "In Behandlung" || echo "Aktiv")"
+  
 else
-    echo -e "${RED}❌ Minimal Encounter fehlgeschlagen:${NC}"
-    echo "$ENCOUNTER_BODY" | jq '.' 2>/dev/null || echo "$ENCOUNTER_BODY"
+  echo "❌ PROBLEM: Keine Encounters gefunden!"
+  echo "Das bedeutet Frontend zeigt möglicherweise Dummy-Daten oder Fallbacks"
 fi
 
+# 5. Test Browser Console Verification
 echo ""
-echo "Test 2: Encounter mit allen optionalen Feldern"
-FULL_ENCOUNTER='{
-  "patientId": "'$WORKING_PATIENT_ID'",
-  "practitionerId": "'$(uuidgen | tr '[:upper:]' '[:lower:]')'",
-  "encounterType": "CONSULTATION",
-  "encounterDate": "'$(date -u +%Y-%m-%dT%H:%M:%S)'",
-  "status": "PLANNED",
-  "reason": "Regular checkup",
-  "billingContext": "STATUTORY"
-}'
-
-echo "Full JSON:"
-echo "$FULL_ENCOUNTER" | jq '.'
-
-FULL_ENCOUNTER_RESULT=$(curl -s -w "HTTPSTATUS:%{http_code}" \
-  -X POST "$BASE_URL/api/v1/encounters" \
-  -H "Content-Type: application/json" \
-  -H "$AUTH_HEADER" \
-  -d "$FULL_ENCOUNTER")
-
-FULL_ENCOUNTER_BODY=$(echo "$FULL_ENCOUNTER_RESULT" | sed -E 's/HTTPSTATUS:[0-9]{3}$//')
-FULL_ENCOUNTER_STATUS=$(echo "$FULL_ENCOUNTER_RESULT" | grep -o "HTTPSTATUS:[0-9]*" | cut -d: -f2)
-
-echo "Response Status: $FULL_ENCOUNTER_STATUS"
-if [ "$FULL_ENCOUNTER_STATUS" = "201" ]; then
-    echo -e "${GREEN}✅ Full Encounter erfolgreich erstellt!${NC}"
-    echo "$FULL_ENCOUNTER_BODY" | jq '.'
-else
-    echo -e "${RED}❌ Full Encounter fehlgeschlagen:${NC}"
-    echo "$FULL_ENCOUNTER_BODY" | jq '.' 2>/dev/null || echo "$FULL_ENCOUNTER_BODY"
-fi
-
-# =================================================================
-# 3. OPTIMIERTE FRONTEND CURL-CALLS
-# =================================================================
-
-echo ""
-echo "3️⃣ OPTIMIERTE FRONTEND CURL-CALLS"
-echo "================================="
-
-echo ""
-echo -e "${GREEN}✅ FUNKTIONIERENDE PATIENT APIS (für React):${NC}"
-
-echo ""
-echo "# Patient erstellen (React PatientForm)"
-echo "curl -s -X POST $BASE_URL/api/v1/patients \\"
-echo "  -H 'Content-Type: application/json' \\"
-echo "  -H '$AUTH_HEADER' \\"
-echo "  -d '{"
-echo "    \"firstName\": \"Max\","
-echo "    \"lastName\": \"Mustermann\","
-echo "    \"birthDate\": \"1985-07-15\","
-echo "    \"gender\": \"MALE\","
-echo "    \"kvnr\": \"M123456789\","
-echo "    \"consentCommunication\": true,"
-echo "    \"consentDataProcessing\": true"
-echo "  }' | jq '.'"
-
-echo ""
-echo "# Patient Details (React PatientDetail)"
-echo "curl -s -H '$AUTH_HEADER' \\"
-echo "  $BASE_URL/api/v1/patients/d0d3ccf4-285f-4611-a3d7-a6148df3d350 | jq '.'"
-
-echo ""
-echo "# Patient KVNR Lookup (React Search)"
-echo "curl -s -H '$AUTH_HEADER' \\"
-echo "  $BASE_URL/api/v1/patients/kvnr/A775100000 | jq '.'"
-
-echo ""
-echo "# Patient Search (React SearchComponent)"
-echo "curl -s -H '$AUTH_HEADER' \\"
-echo "  '$BASE_URL/api/v1/patients/search?searchTerm=Schmidt&page=0&size=10' | jq '.'"
-
-echo ""
-echo "# Patient Soft Delete (React DeleteButton)"
-echo "curl -s -X DELETE -H '$AUTH_HEADER' \\"
-echo "  $BASE_URL/api/v1/patients/{patient-id}"
-
-echo ""
-echo -e "${YELLOW}🔧 WORKAROUND FÜR PATIENT LIST:${NC}"
-echo "# Da GET /api/v1/patients HTTP 500 gibt, verwenden Sie:"
-echo ""
-echo "# Option 1: Search mit leerem/wildcard Term"
-echo "curl -s -H '$AUTH_HEADER' \\"
-echo "  '$BASE_URL/api/v1/patients/search?searchTerm=&page=0&size=20' | jq '.'"
-
-echo ""
-echo "# Option 2: Search mit häufigen Namen"
-echo "COMMON_NAMES=('Schmidt' 'Müller' 'Weber' 'Meyer' 'Wagner')"
-echo "for name in \"\${COMMON_NAMES[@]}\"; do"
-echo "  curl -s -H '$AUTH_HEADER' \\"
-echo "    '$BASE_URL/api/v1/patients/search?searchTerm='\$name'&page=0&size=50' | jq '.content[]'"
-echo "done"
-
-# Test Search-Workaround
-echo ""
-echo "Test: Search-Workaround für Patient List"
-SEARCH_WORKAROUND=$(curl -s -H "$AUTH_HEADER" \
-  "$BASE_URL/api/v1/patients/search?searchTerm=&page=0&size=20")
-
-if echo "$SEARCH_WORKAROUND" | jq -e '.content' > /dev/null 2>&1; then
-    echo -e "${GREEN}✅ Search-Workaround funktioniert!${NC}"
-    PATIENT_COUNT=$(echo "$SEARCH_WORKAROUND" | jq '.content | length')
-    echo "Gefundene Patienten: $PATIENT_COUNT"
-else
-    echo -e "${RED}❌ Search-Workaround funktioniert nicht${NC}"
-fi
-
-# =================================================================
-# 4. REACT FRONTEND INTEGRATION CODE
-# =================================================================
-
-echo ""
-echo "4️⃣ REACT FRONTEND INTEGRATION"
-echo "============================="
-
-cat << 'EOF'
-
-// Optimierte React API Integration basierend auf Test-Ergebnissen
-
-class HISApiService {
-  constructor() {
-    this.baseUrl = 'http://localhost:8080/api/v1';
-    this.authHeader = 'Basic ' + btoa('admin:dev-password');
-  }
-
-  // ✅ WORKING: Patient Management
-  async createPatient(patientData) {
-    // Minimale required fields (aus Tests validiert)
-    const minimalPatient = {
-      firstName: patientData.firstName,
-      lastName: patientData.lastName,
-      birthDate: patientData.birthDate,
-      gender: patientData.gender, // MALE|FEMALE|OTHER|UNKNOWN
-      kvnr: patientData.kvnr, // Pattern: ^[A-Z][0-9]{9}$
-      consentCommunication: patientData.consentCommunication || false,
-      consentDataProcessing: patientData.consentDataProcessing || false
-    };
-
-    // Optionale Felder nur hinzufügen wenn vorhanden
-    if (patientData.title) minimalPatient.title = patientData.title;
-    if (patientData.insuranceType) minimalPatient.insuranceType = patientData.insuranceType;
-    if (patientData.insuranceCompanyName) minimalPatient.insuranceCompanyName = patientData.insuranceCompanyName;
-    if (patientData.phone) minimalPatient.phone = patientData.phone;
-    if (patientData.email) minimalPatient.email = patientData.email;
-
-    const response = await fetch(`${this.baseUrl}/patients`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': this.authHeader
-      },
-      body: JSON.stringify(minimalPatient)
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || `HTTP ${response.status}`);
-    }
-
-    return response.json();
-  }
-
-  // ✅ WORKING: Get Patient by ID
-  async getPatient(patientId) {
-    const response = await fetch(`${this.baseUrl}/patients/${patientId}`, {
-      headers: { 'Authorization': this.authHeader }
-    });
-
-    if (!response.ok) {
-      if (response.status === 404) {
-        return null; // Patient not found
-      }
-      throw new Error(`HTTP ${response.status}`);
-    }
-
-    return response.json();
-  }
-
-  // ✅ WORKING: Get Patient by KVNR
-  async getPatientByKvnr(kvnr) {
-    const response = await fetch(`${this.baseUrl}/patients/kvnr/${kvnr}`, {
-      headers: { 'Authorization': this.authHeader }
-    });
-
-    if (!response.ok) {
-      if (response.status === 404) {
-        return null; // Patient not found
-      }
-      throw new Error(`HTTP ${response.status}`);
-    }
-
-    return response.json();
-  }
-
-  // ✅ WORKING: Search Patients (funktioniert perfekt)
-  async searchPatients(searchTerm = '', page = 0, size = 20) {
-    const url = `${this.baseUrl}/patients/search?searchTerm=${encodeURIComponent(searchTerm)}&page=${page}&size=${size}`;
-    const response = await fetch(url, {
-      headers: { 'Authorization': this.authHeader }
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-
-    return response.json();
-  }
-
-  // 🔧 WORKAROUND: Get All Patients (da List API HTTP 500 gibt)
-  async getAllPatients(page = 0, size = 50) {
-    // Verwende Search mit leerem Term als Workaround
-    return this.searchPatients('', page, size);
-  }
-
-  // ✅ WORKING: Delete Patient (Soft Delete)
-  async deletePatient(patientId) {
-    const response = await fetch(`${this.baseUrl}/patients/${patientId}`, {
-      method: 'DELETE',
-      headers: { 'Authorization': this.authHeader }
-    });
-
-    if (!response.ok && response.status !== 404) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-
-    return response.status === 204; // Successfully deleted
-  }
-
-  // 🔧 FIXED: Encounter Creation (minimale Struktur)
-  async createEncounter(encounterData) {
-    // Minimale required fields (aus Tests ermittelt)
-    const minimalEncounter = {
-      patientId: encounterData.patientId,
-      practitionerId: encounterData.practitionerId || this.generateUUID(),
-      encounterType: encounterData.encounterType, // CONSULTATION|EMERGENCY|ROUTINE|FOLLOW_UP
-      encounterDate: encounterData.encounterDate || new Date().toISOString()
-    };
-
-    // Optionale Felder nur wenn vorhanden
-    if (encounterData.status) minimalEncounter.status = encounterData.status;
-    if (encounterData.reason) minimalEncounter.reason = encounterData.reason;
-    if (encounterData.billingContext) minimalEncounter.billingContext = encounterData.billingContext;
-
-    const response = await fetch(`${this.baseUrl}/encounters`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': this.authHeader
-      },
-      body: JSON.stringify(minimalEncounter)
-    });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.message || `HTTP ${response.status}`);
-    }
-
-    return response.json();
-  }
-
-  // ✅ WORKING: Get Patient Encounters
-  async getPatientEncounters(patientId, page = 0, size = 20) {
-    const response = await fetch(`${this.baseUrl}/encounters/patient/${patientId}?page=${page}&size=${size}`, {
-      headers: { 'Authorization': this.authHeader }
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-
-    return response.json();
-  }
-
-  // Hilfsfunktion
-  generateUUID() {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-      const r = Math.random() * 16 | 0;
-      const v = c == 'x' ? r : (r & 0x3 | 0x8);
-      return v.toString(16);
-    });
-  }
-
-  // ✅ WORKING: System Health
-  async getHealth() {
-    const response = await fetch('http://localhost:8080/actuator/health');
-    return response.json();
-  }
-
-  // Frontend-optimierte Dashboard-Daten
-  async getDashboardStats() {
-    try {
-      // Verwende Search-API als Workaround für Patient List
-      const patientsResponse = await this.searchPatients('', 0, 100);
-      const patients = patientsResponse.content || [];
-
-      let totalEncounters = 0;
-      const allEncounters = [];
-
-      // Sammle Encounters für alle Patienten
-      for (const patient of patients.slice(0, 20)) { // Limit für Performance
-        try {
-          const encountersResponse = await this.getPatientEncounters(patient.id, 0, 100);
-          const encounters = encountersResponse.content || [];
-          totalEncounters += encounters.length;
-          allEncounters.push(...encounters);
-        } catch (error) {
-          console.warn(`Could not load encounters for patient ${patient.id}`);
-        }
-      }
-
-      return {
-        totalPatients: patientsResponse.totalElements || 0,
-        totalEncounters,
-        patientsByGender: this.groupBy(patients, 'gender'),
-        patientsByInsurance: this.groupBy(patients, 'insuranceStatus'),
-        encountersByStatus: this.groupBy(allEncounters, 'status'),
-        encountersByType: this.groupBy(allEncounters, 'type'),
-        recentPatients: patients.slice(0, 5),
-        recentEncounters: allEncounters.slice(0, 5)
-      };
-    } catch (error) {
-      console.error('Dashboard stats error:', error);
-      return {
-        totalPatients: 0,
-        totalEncounters: 0,
-        error: error.message
-      };
-    }
-  }
-
-  groupBy(array, key) {
-    return array.reduce((groups, item) => {
-      const group = item[key] || 'Unknown';
-      groups[group] = (groups[group] || 0) + 1;
-      return groups;
-    }, {});
-  }
-}
-
-// Usage Examples (getestet und funktionierend)
-const api = new HISApiService();
-
-// Dashboard Component
-const Dashboard = () => {
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const loadDashboard = async () => {
-      try {
-        const dashboardStats = await api.getDashboardStats();
-        setStats(dashboardStats);
-      } catch (error) {
-        console.error('Dashboard error:', error);
-        setStats({ error: error.message });
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadDashboard();
-  }, []);
-
-  if (loading) return <div>Loading...</div>;
-  if (stats.error) return <div>Error: {stats.error}</div>;
-
-  return (
-    <div>
-      <h1>HIS Dashboard</h1>
-      <div>Patients: {stats.totalPatients}</div>
-      <div>Encounters: {stats.totalEncounters}</div>
-      <div>By Gender: {JSON.stringify(stats.patientsByGender)}</div>
-      <div>By Status: {JSON.stringify(stats.encountersByStatus)}</div>
-    </div>
-  );
-};
-
-// Patient Search Component
-const PatientSearch = () => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [results, setResults] = useState([]);
-  const [loading, setLoading] = useState(false);
-
-  const handleSearch = async (term) => {
-    setLoading(true);
-    try {
-      const response = await api.searchPatients(term, 0, 20);
-      setResults(response.content || []);
-    } catch (error) {
-      console.error('Search error:', error);
-      setResults([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div>
-      <input
-        type="text"
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-        onKeyPress={(e) => e.key === 'Enter' && handleSearch(searchTerm)}
-      />
-      <button onClick={() => handleSearch(searchTerm)}>Search</button>
-      
-      {loading ? (
-        <div>Searching...</div>
-      ) : (
-        <div>
-          {results.map(patient => (
-            <div key={patient.id}>
-              {patient.fullName} (KVNR: {patient.kvnr})
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
-
-EOF
-
-# =================================================================
-# 5. PERFORMANCE UND FEHLERBEHANDLUNG
-# =================================================================
-
-echo ""
-echo "5️⃣ PERFORMANCE & ERROR HANDLING"
+echo "🔍 BROWSER CONSOLE VERIFICATION:"
 echo "================================"
+echo "Öffne Browser Console und führe aus:"
+echo ""
+echo "// Test ob echte Daten geladen werden"
+echo "fetch('http://localhost:8080/api/v1/encounters/patient/$PATIENT_ID?page=0&size=10', {"
+echo "  headers: { 'Authorization': 'Basic $(echo -n 'admin:dev-password' | base64)' }"
+echo "})"
+echo ".then(r => r.json())"
+echo ".then(d => {"
+echo "  console.log('🔍 Direct API Result:', d);"
+echo "  console.log('📊 Encounter Count:', d.content?.length || 0);"
+echo "  if (d.content?.length > 0) {"
+echo "    console.log('✅ REAL DATA found');"
+echo "    console.log('📋 First Encounter:', d.content[0]);"
+echo "  } else {"
+echo "    console.log('❌ NO DATA - Frontend might show dummy data');"
+echo "  }"
+echo "});"
 
 echo ""
-echo "Optimierte API-Aufrufe für beste Performance:"
-
-# Performance-Test der funktionierenden APIs
+echo "6. Alternative Verification:"
+echo "============================"
+echo "Im Browser Console, prüfe die loadPatientEncounters Funktion:"
 echo ""
-echo "Performance-Benchmarks:"
-
-APIS=(
-  "GET /api/v1/patients/search?searchTerm=Schmidt&page=0&size=10"
-  "GET /api/v1/patients/kvnr/A775100000"
-  "GET /actuator/health"
-)
-
-for api_desc in "${APIS[@]}"; do
-    method=$(echo "$api_desc" | cut -d' ' -f1)
-    endpoint=$(echo "$api_desc" | cut -d' ' -f2-)
-    
-    START_TIME=$(date +%s%N)
-    curl -s -H "$AUTH_HEADER" "$BASE_URL$endpoint" > /dev/null
-    END_TIME=$(date +%s%N)
-    RESPONSE_TIME=$(( (END_TIME - START_TIME) / 1000000 ))
-    
-    if [ "$RESPONSE_TIME" -lt 100 ]; then
-        echo -e "  ${GREEN}⚡ $api_desc: ${RESPONSE_TIME}ms (Excellent)${NC}"
-    elif [ "$RESPONSE_TIME" -lt 500 ]; then
-        echo -e "  ${GREEN}✅ $api_desc: ${RESPONSE_TIME}ms (Good)${NC}"
-    elif [ "$RESPONSE_TIME" -lt 1000 ]; then
-        echo -e "  ${YELLOW}⚠️ $api_desc: ${RESPONSE_TIME}ms (Acceptable)${NC}"
-    else
-        echo -e "  ${RED}❌ $api_desc: ${RESPONSE_TIME}ms (Slow)${NC}"
-    fi
-done
-
-# =================================================================
-# ZUSAMMENFASSUNG
-# =================================================================
+echo "// Teste direkt die Frontend Funktion"
+echo "window.loadPatientEncounters?.('$PATIENT_ID')"
+echo ".then(encounters => {"
+echo "  console.log('📊 Frontend loaded encounters:', encounters.length);"
+echo "  console.log('📋 Encounter details:', encounters);"
+echo "  if (encounters.length > 0) {"
+echo "    console.log('✅ Frontend loads REAL data');"
+echo "  } else {"
+echo "    console.log('❌ Frontend loads NO data - might be using fallbacks');"
+echo "  }"
+echo "});"
 
 echo ""
-echo "=================================================="
-echo "🎯 OPTIMIERTE FRONTEND INTEGRATION"
-echo "=================================================="
+echo "🎯 INTERPRETATION:"
+echo "=================="
+echo "Frontend zeigt ECHTE Daten wenn:"
+echo "  ✅ API gibt encounters zurück ($ENCOUNTER_COUNT > 0)"
+echo "  ✅ Browser Console zeigt 'encounters loaded' mit count > 0"
+echo "  ✅ Encounter Details enthalten echte IDs, Daten, Status"
 echo ""
-echo -e "${GREEN}✅ FUNKTIONIERT PERFEKT:${NC}"
-echo "  • Patient Create/Read/Delete ✓"
-echo "  • Patient Search (28ms) ✓"
-echo "  • KVNR Lookup ✓"
-echo "  • Enum Validation ✓"
-echo "  • Error Handling ✓"
-echo "  • Soft Delete ✓"
+echo "Frontend zeigt DUMMY Daten wenn:"
+echo "  ❌ API gibt leere Antwort zurück"
+echo "  ❌ Browser Console zeigt 'Failed to load encounters'"
+echo "  ❌ Fallback-Logic wird verwendet"
+
 echo ""
-echo -e "${YELLOW}🔧 WORKAROUNDS IMPLEMENTIERT:${NC}"
-echo "  • Patient List → Search mit leerem Term"
-echo "  • Encounter JSON → Minimale Struktur"
-echo "  • Dashboard → Client-side Aggregation"
-echo ""
-echo -e "${BLUE}📊 TEST-DATEN VERFÜGBAR:${NC}"
-echo "  • Patient: d0d3ccf4-285f-4611-a3d7-a6148df3d350"
-echo "  • KVNR: A775100000"
-echo "  • Verschiedene Test-Patienten für Validation"
-echo ""
-echo -e "${GREEN}🚀 FRONTEND READY:${NC}"
-echo "  • React Integration Code getestet"
-echo "  • Performance optimiert (28ms-760ms)"
-echo "  • Error Handling implementiert"
-echo "  • TypeScript-kompatible Responses"
+echo "📋 FINAL CHECK:"
+echo "==============="
+if [ "$ENCOUNTER_COUNT" -gt 0 ]; then
+  echo "🎉 SUCCESS: Frontend sollte ECHTE Encounter Daten anzeigen!"
+  echo "   - $ENCOUNTER_COUNT Encounters verfügbar"
+  echo "   - API funktioniert korrekt"
+  echo "   - Daten werden vom Backend geliefert"
+else
+  echo "⚠️ WARNING: Frontend könnte Dummy-Daten oder Fallbacks anzeigen"
+  echo "   - Keine Encounters in API gefunden"
+  echo "   - Prüfe ob loadPatientEncounters() Error Handling aktiviert wird"
+fi

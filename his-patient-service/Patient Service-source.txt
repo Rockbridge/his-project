@@ -1,11 +1,12 @@
 # HIS Patient Service - Complete Source Code Structure
-Generated: Mo 11 Aug 2025 23:28:52 CEST
+Generated: Di 12 Aug 2025 21:35:00 CEST
 Project: Hospital Information System (HIS) - Patient Service
 =========================================================
 
 ## Directory Structure
 ```
 ./.mvn/wrapper/maven-wrapper.properties
+./db.changelog-master.xml
 ./Dockerfile
 ./pom.xml
 ./src/main/java/de/his/patient/application/dto/AddressResponse.java
@@ -62,7 +63,9 @@ Project: Hospital Information System (HIS) - Patient Service
 ```
 .
 ├── create_java.sh
+├── db.changelog-master.xml
 ├── Dockerfile
+├── liquibase_properties
 ├── logs
 ├── mvnw
 ├── mvnw.cmd
@@ -72,6 +75,7 @@ Project: Hospital Information System (HIS) - Patient Service
 ├── scripts
 │   └── test
 │       └── test-exceptions.sh
+├── setup_liquibase_script.sh
 └── src
     ├── main
     │   ├── java
@@ -158,7 +162,7 @@ Project: Hospital Information System (HIS) - Patient Service
         │                   └── controller
         └── resources
 
-41 directories, 56 files
+41 directories, 59 files
 ```
 
 ## Source Code Files
@@ -2486,13 +2490,50 @@ distributionUrl=https://repo.maven.apache.org/maven2/org/apache/maven/apache-mav
 
 ### File: ./src/main/resources/liquibase.properties
 ```properties
-# Liquibase configuration for Patient Service
+# Liquibase Configuration für Patient Service - KORRIGIERT für lokalen Maven-Zugriff
+
+# Changelog Location
 changeLogFile=src/main/resources/db/changelog/db.changelog-master.xml
-url=jdbc:postgresql://localhost:5433/his_patients
-username=patient_user
+
+# Database Connection - KORRIGIERT für Port 5432
+url=jdbc:postgresql://localhost:5432/his_db
+username=his_user
 password=dev_password
 driver=org.postgresql.Driver
 
+# Schema Configuration
+defaultSchemaName=his_patient
+liquibaseSchemaName=his_patient
+
+# Output Configuration
+outputFile=target/liquibase-output.txt
+logLevel=INFO
+validateXMLChangeLog=true
+
+# Context für verschiedene Umgebungen
+contexts=dev,test,prod,docker
+labels=patient-service,healthcare,baseline
+
+```
+
+### File: ./db.changelog-master.xml
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!-- Master Changelog für Patient Service -->
+    <!-- Ausführungsreihenfolge ist kritisch! -->
+    
+    <include file="db/changelog/001-create-persons-table.xml"/>
+    <include file="db/changelog/002-create-patients-table.xml"/>
+    <include file="db/changelog/003-create-addresses-table.xml"/>
+    <include file="db/changelog/004-create-indexes.xml"/>
+    
+</databaseChangeLog>
 ```
 
 ### File: ./pom.xml
@@ -2604,26 +2645,246 @@ driver=org.postgresql.Driver
 
 ### File: ./src/main/resources/db/changelog/001-create-persons-table.xml
 ```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="001-create-persons-table" author="his-team">
+        <comment>Create persons table - SIMPLIFIED VERSION</comment>
+        
+        <!-- UUID Extension aktivieren -->
+        <sql>CREATE EXTENSION IF NOT EXISTS "uuid-ossp";</sql>
+        
+        <!-- Persons Table -->
+        <createTable tableName="persons" schemaName="his_patient">
+            <column name="id" type="UUID" defaultValueComputed="uuid_generate_v4()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="first_name" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="last_name" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="title" type="VARCHAR(50)"/>
+            <column name="birth_date" type="DATE"/>
+            <column name="gender" type="VARCHAR(20)"/>
+            <column name="phone" type="VARCHAR(50)"/>
+            <column name="email" type="VARCHAR(100)"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="version" type="BIGINT" defaultValue="0"/>
+            <column name="deleted_at" type="TIMESTAMP"/>
+        </createTable>
+        
+        <rollback>
+            DROP TABLE his_patient.persons;
+        </rollback>
+    </changeSet>
+    
+</databaseChangeLog>
 
 ```
 
 ### File: ./src/main/resources/db/changelog/002-create-patients-table.xml
 ```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="002-create-patients-table" author="his-team">
+        <comment>Create patients table - Patient-specific data extending persons</comment>
+        
+        <!-- Patients Table (Extends Persons via JPA @Inheritance JOINED) -->
+        <createTable tableName="patients" schemaName="his_patient">
+            <!-- Primary Key - References persons.id -->
+            <column name="id" type="UUID">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            
+            <!-- German Healthcare Identifiers -->
+            <column name="kvnr" type="VARCHAR(50)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            
+            <!-- Insurance Information -->
+            <column name="insurance_number" type="VARCHAR(100)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="insurance_status" type="VARCHAR(50)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="insurance_type" type="VARCHAR(50)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="insurance_company_id" type="VARCHAR(100)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="insurance_company_name" type="VARCHAR(200)">
+                <constraints nullable="true"/>
+            </column>
+            
+            <!-- DSGVO Consent Management -->
+            <column name="consent_communication" type="BOOLEAN" defaultValue="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="consent_data_processing" type="BOOLEAN" defaultValue="false">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        
+        <!-- Foreign Key zu persons -->
+        <addForeignKeyConstraint 
+            baseTableSchemaName="his_patient" baseTableName="patients" baseColumnNames="id"
+            referencedTableSchemaName="his_patient" referencedTableName="persons" referencedColumnNames="id"
+            constraintName="fk_patients_persons"
+            onDelete="CASCADE"/>
+        
+        <rollback>
+            DROP TABLE his_patient.patients;
+        </rollback>
+    </changeSet>
+    
+</databaseChangeLog>
 
 ```
 
 ### File: ./src/main/resources/db/changelog/003-create-addresses-table.xml
 ```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="003-create-addresses-table" author="his-team">
+        <comment>Create addresses table</comment>
+        
+        <createTable tableName="addresses" schemaName="his_patient">
+            <column name="id" type="UUID" defaultValueComputed="uuid_generate_v4()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="person_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="address_type" type="VARCHAR(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="street" type="VARCHAR(200)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="house_number" type="VARCHAR(10)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="postal_code" type="VARCHAR(10)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="city" type="VARCHAR(100)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="state" type="VARCHAR(100)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="country" type="VARCHAR(50)" defaultValue="DE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="version" type="BIGINT" defaultValue="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="deleted_at" type="TIMESTAMP">
+                <constraints nullable="true"/>
+            </column>
+        </createTable>
+        
+        <addForeignKeyConstraint 
+            baseTableSchemaName="his_patient" baseTableName="addresses" baseColumnNames="person_id"
+            referencedTableSchemaName="his_patient" referencedTableName="persons" referencedColumnNames="id"
+            constraintName="fk_addresses_persons"
+            onDelete="CASCADE"/>
+        
+        <rollback>
+            DROP TABLE his_patient.addresses;
+        </rollback>
+    </changeSet>
+    
+</databaseChangeLog>
 
 ```
 
 ### File: ./src/main/resources/db/changelog/004-create-indexes.xml
 ```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="004-create-indexes" author="his-team">
+        <comment>Create performance indexes</comment>
+        
+        <!-- Name Search Index -->
+        <createIndex tableName="persons" schemaName="his_patient" indexName="idx_persons_name_search">
+            <column name="last_name"/>
+            <column name="first_name"/>
+        </createIndex>
+        
+        <!-- KVNR Index -->
+        <createIndex tableName="patients" schemaName="his_patient" indexName="idx_patients_kvnr">
+            <column name="kvnr"/>
+        </createIndex>
+        
+        <!-- Address Person Index -->
+        <createIndex tableName="addresses" schemaName="his_patient" indexName="idx_addresses_person_id">
+            <column name="person_id"/>
+        </createIndex>
+        
+        <rollback>
+            DROP INDEX IF EXISTS his_patient.idx_addresses_person_id;
+            DROP INDEX IF EXISTS his_patient.idx_patients_kvnr;
+            DROP INDEX IF EXISTS his_patient.idx_persons_name_search;
+        </rollback>
+    </changeSet>
+    
+</databaseChangeLog>
 
 ```
 
 ### File: ./src/main/resources/db/changelog/db.changelog-master.xml
 ```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!-- Master Changelog für Patient Service -->
+    <!-- Ausführungsreihenfolge ist kritisch! -->
+    
+    <include file="db/changelog/001-create-persons-table.xml"/>
+    <include file="db/changelog/002-create-patients-table.xml"/>
+    <include file="db/changelog/003-create-addresses-table.xml"/>
+    <include file="db/changelog/004-create-indexes.xml"/>
+    
+</databaseChangeLog>
 
 ```
 
