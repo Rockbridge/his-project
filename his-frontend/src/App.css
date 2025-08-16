@@ -94,6 +94,15 @@
 }
 
 /* ===== STATION LAYOUT ===== */
+.his-results-list {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .his-station-layout {
   display: flex;
   flex-direction: column;
@@ -183,11 +192,12 @@
   background: var(--bg-primary);
   border-radius: 8px;
   border: 1px solid var(--border-color);
-  overflow: hidden;
   box-shadow: var(--shadow);
   width: 100%;
   position: relative !important; /* Für das Overlay */
   min-height: 400px; /* Mindesthöhe für Overlay */
+  flex: 1;
+  overflow-y: auto;
 }
 
 .his-loading-overlay {
@@ -1726,7 +1736,8 @@ body {
   background: var(--bg-primary);
   border-radius: 8px;
   border: 1px solid var(--border-color);
-  overflow: hidden;
+  flex: 1;
+  overflow-y: auto;
 }
 
 .his-patient-table {
