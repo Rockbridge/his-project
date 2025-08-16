@@ -1067,11 +1067,11 @@ const MainContent = () => {
               </div>
             )}
 
-              <Toolbar />
+            <Toolbar />
 
-              <PatientList />
+            <PatientList />
 
-              <Paginator />
+            <Paginator />
           </div>
         );
       default:
@@ -1086,7 +1086,9 @@ const MainContent = () => {
     }
   };
 
-  return <main className="his-content">{renderContent()}</main>;
+  return (
+    <main className="his-content scroll-container">{renderContent()}</main>
+  );
 };
 
 // ===== FOOTER COMPONENT =====

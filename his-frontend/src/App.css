@@ -1,12 +1,24 @@
+:root {
+  --his-header-h: 64px; /* .his-header min-height */
+  --his-nav-h: 50px; /* .his-nav-tabs min-height */
+  --his-footer-h: 56px; /* grob: Footer-Höhe inkl. Padding */
+}
+
 /* ===== CONTENT AREA ===== */
 .his-content {
   flex: 1;
-  padding: 24px 40px;
-  overflow-y: auto;
   background-color: var(--bg-secondary);
   width: 100%;
   max-width: 1840px; /* FullHD minus padding */
   margin: 0 auto;
+  height: calc(
+    100vh - (var(--his-header-h) + var(--his-nav-h) + var(--his-footer-h))
+  );
+  overflow-y: auto; /* HIER wird gescrollt */
+  display: flex;
+  flex-direction: column;
+  min-height: 0; /* wichtig in Flex-Layouts */
+  padding: 24px 40px; /* belasse dein gewünschtes Padding */
 }
 
 /* ===== SECTION HEADER ===== */
@@ -100,7 +112,7 @@
   height: 100%;
   flex: 1;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .his-station-layout {
@@ -119,7 +131,7 @@
 .his-station-content {
   flex: 1;
   min-height: 0;
-  overflow-y: auto; /* Scrollbar hier */
+  overflow: visible; /* Scrollbar hier */
   display: flex;
   flex-direction: column;
 }
@@ -142,6 +154,12 @@
   box-shadow: var(--shadow);
   flex-wrap: wrap;
   gap: 16px;
+
+  position: sticky;
+  top: 0;
+  z-index: 50; /* < Header (Header hat z-index:100) */
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .his-toolbar-left,
@@ -195,9 +213,9 @@
   box-shadow: var(--shadow);
   width: 100%;
   position: relative !important; /* Für das Overlay */
-  min-height: 400px; /* Mindesthöhe für Overlay */
-  flex: 1;
-  overflow-y: auto;
+  min-height: 0; /* Mindesthöhe für Overlay */
+  flex: 1 1 auto;
+  overflow: visible;
 }
 
 .his-loading-overlay {
@@ -990,8 +1008,25 @@
   }
 
   .his-content {
-    max-width: 100%;
-    padding: 20px 32px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--bg-secondary);
+    padding: 24px 40px;
+    min-height: 0; /* wichtig für Flexbox-Layouts */
+  }
+
+  .his-content.scroll-container {
+    height: calc(
+      100vh - (var(--his-header-h) + var(--his-nav-h) + var(--his-footer-h))
+    );
+    overflow-y: auto;
+  }
+
+  .his-content.scroll-container .his-toolbar {
+    position: sticky;
+    top: 0; /* relativ zu diesem Container */
+    z-index: 50;
   }
 
   .his-dashboard-grid {
@@ -1496,13 +1531,6 @@ body {
   min-height: 0;
 }
 
-.his-content {
-  flex: 1;
-  padding: 24px;
-  overflow-y: auto;
-  background-color: var(--bg-secondary);
-}
-
 /* ===== SIDEBARS ===== */
 .his-sidebar {
   width: 280px;
@@ -1736,8 +1764,10 @@ body {
   background: var(--bg-primary);
   border-radius: 8px;
   border: 1px solid var(--border-color);
-  flex: 1;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
+  scroll-margin-top: 72px; /* optional: wenn du zu Sektionen scrollst */
 }
 
 .his-patient-table {
@@ -1991,10 +2021,6 @@ body {
     width: 100%;
     border: none;
     border-bottom: 1px solid var(--border-color);
-  }
-
-  .his-content {
-    padding: 16px;
   }
 
   .his-list-header {
