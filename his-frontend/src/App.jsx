@@ -6,7 +6,7 @@ const HISContext = createContext();
 
 const HISProvider = ({ children }) => {
   const [patients, setPatients] = useState([]);
-  const [encounters, setEncounters] = useState([]);
+  const [encounters, _setEncounters] = useState([]);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [selectedEncounters, setSelectedEncounters] = useState([]);
   const [expandedRows, setExpandedRows] = useState(new Set());
@@ -317,7 +317,7 @@ const Toolbar = () => {
     setSearchTerm,
     setShowConfigPanel,
     loadPatients,
-    patients,
+    _patients,
   } = useContext(HISContext);
 
   return (
@@ -1045,7 +1045,7 @@ const MainContent = () => {
         );
       case "stationsübersicht":
         return (
-          <div className="his-station-layout">
+          <div className="his-results-list">
             {loading && (
               <div className="his-modal-overlay">
                 <div className="his-modal-dialog">
@@ -1067,17 +1067,11 @@ const MainContent = () => {
               </div>
             )}
 
-            <div className="his-station-toolbar">
               <Toolbar />
-            </div>
 
-            <div className="his-station-content">
               <PatientList />
-            </div>
 
-            <div className="his-station-pagination">
               <Paginator />
-            </div>
           </div>
         );
       default:
