@@ -193,22 +193,16 @@ function usePatientSearch({ query, page, sort }) {
   const [error, setError] = React.useState(null);
 
   React.useEffect(() => {
-    // leerer Query -> sofort zurücksetzen
-    if (!debouncedQuery || !debouncedQuery.trim()) {
-      setRows([]);
-      setTotal(0);
-      setPageCount(0);
-      setError(null);
-      return;
-    }
-
     const ctrl = new AbortController();
     setLoading(true);
     setError(null);
 
+    // NEU: immer callen – auch bei leerem Query
+    const q = (debouncedQuery ?? "").trim();
+
     apiRequest(
       `/patients/search?searchTerm=${encodeURIComponent(
-        debouncedQuery.trim()
+        q
       )}&page=${page}&size=${PAGE_SIZE}`,
       { signal: ctrl.signal }
     )
@@ -407,21 +401,15 @@ function ModulePatientSearch() {
           onReset={() => setQuery("")}
         />
 
-        {(!query || !query.trim()) && (
-          <div className="placeholder">
-            Bitte geben Sie einen Suchbegriff (Name oder KVNR) ein.
-          </div>
-        )}
-
         {error && (
           <div className="alert alert-error">
             {String(error.message || error)}
           </div>
         )}
 
-        {!error && query && <PatientTable rows={rows} />}
+        {!error && <PatientTable rows={rows} />}
 
-        {query && pageCount > 1 && (
+        {pageCount > 1 && (
           <Pagination page={page} pageCount={pageCount} onChange={setPage} />
         )}
       </div>
@@ -431,7 +419,7 @@ function ModulePatientSearch() {
 
 /** App-Rahmen mit Modulumschaltung per Tabs **/
 export default function App() {
-  const [active, setActive] = useState("dashboard");
+  const [active, setActive] = useState("patientSearch");
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(false);
 
