@@ -67,7 +67,8 @@ function MainLayout({
   rightOpen,
   leftContent,
   rightContent,
-  children /* center content */,
+  children,
+  noCenterScroll = false, // NEU
 }) {
   const cls = [
     "app-main",
@@ -86,8 +87,15 @@ function MainLayout({
         </aside>
       )}
 
-      <section className="app-center" aria-label="Zentraler Inhaltsbereich">
-        <div className="center-scroll">{children}</div>
+      {/* Center */}
+      <section className="app-center" aria-label="Zentralbereich">
+        <div
+          className={`center-scroll ${
+            noCenterScroll ? "no-center-scroll" : ""
+          }`}
+        >
+          {children}
+        </div>
       </section>
 
       {rightOpen && (
@@ -157,7 +165,7 @@ function ModulePatientsSplit() {
 /** Gateway-Settings (Basic Auth analog App.jsx.old) */
 const BASE_URL = "http://localhost:8080/api/v1";
 const AUTH_HEADER = "Basic " + btoa("admin:dev-password"); // TODO: später aus Config/ENV laden
-const PAGE_SIZE = 12;
+const PAGE_SIZE = 15;
 
 /** dünner API-Wrapper */
 async function apiRequest(endpoint, init = {}) {
@@ -311,7 +319,6 @@ function PatientTable({ rows }) {
   };
 
   const mapStatus = (s) => {
-    // Enum InsuranceStatus: ACTIVE, INACTIVE, SUSPENDED, CANCELLED, UNKNOWN
     const m = {
       ACTIVE: "AKTIV",
       INACTIVE: "INAKTIV",
@@ -332,6 +339,7 @@ function PatientTable({ rows }) {
         <thead>
           <tr>
             <th>Pat.-ID</th>
+            <th>KVNR</th> {/* NEU */}
             <th>Patientenname</th>
             <th>Geburtsdatum</th>
             <th>Geschlecht</th>
@@ -342,14 +350,16 @@ function PatientTable({ rows }) {
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={6} className="empty">
+              <td colSpan={7} className="empty">
                 Keine Daten
-              </td>
+              </td>{" "}
+              {/* colspan angepasst */}
             </tr>
           ) : (
             rows.map((p) => (
               <tr key={p.id}>
                 <td>{p.id}</td>
+                <td>{p.kvnr || "—"}</td> {/* NEU */}
                 <td>{p.fullName || "—"}</td>
                 <td>{fmtDate(p.birthDate)}</td>
                 <td>{mapGender(p.gender)}</td>
@@ -376,7 +386,7 @@ function PatientTable({ rows }) {
 function ModulePatientSearch() {
   const [query, setQuery] = React.useState("");
   const [page, setPage] = React.useState(0);
-  const [sort, setSort] = React.useState({ by: null, dir: "asc" }); // Stub
+  const [sort, setSort] = React.useState({ by: null, dir: "asc" }); // Sort-Stub
 
   const { rows, total, pageCount, loading, error } = usePatientSearch({
     query,
@@ -384,7 +394,7 @@ function ModulePatientSearch() {
     sort,
   });
 
-  // Reset page bei Query-Wechsel
+  // Bei Query-Änderung immer auf Seite 0 springen
   React.useEffect(() => {
     setPage(0);
   }, [query]);
@@ -392,27 +402,34 @@ function ModulePatientSearch() {
   return (
     <div className="split-left" role="region" aria-label="Patientensuche">
       <div className="pane-title">Patientensuche</div>
+
+      {/* Statischer Header: Suche/Info */}
+      <PatientSearchSubToolbar
+        query={query}
+        onQueryChange={setQuery}
+        total={total}
+        loading={loading}
+        onReset={() => setQuery("")}
+      />
+
+      {/* Statische Fehleranzeige */}
+      {error && (
+        <div className="alert alert-error">
+          {String(error.message || error)}
+        </div>
+      )}
+
+      {/* Nur die Ergebnisliste scrollt */}
       <div className="pane-scroll">
-        <PatientSearchSubToolbar
-          query={query}
-          onQueryChange={setQuery}
-          total={total}
-          loading={loading}
-          onReset={() => setQuery("")}
-        />
-
-        {error && (
-          <div className="alert alert-error">
-            {String(error.message || error)}
-          </div>
-        )}
-
         {!error && <PatientTable rows={rows} />}
-
-        {pageCount > 1 && (
-          <Pagination page={page} pageCount={pageCount} onChange={setPage} />
-        )}
       </div>
+
+      {/* Statischer Footer: Pagination */}
+      {pageCount > 1 && (
+        <div className="pane-footer">
+          <Pagination page={page} pageCount={pageCount} onChange={setPage} />
+        </div>
+      )}
     </div>
   );
 }
@@ -514,6 +531,7 @@ export default function App() {
         rightOpen={rightOpen}
         leftContent={leftContent}
         rightContent={rightContent}
+        noCenterScroll={active === "patientSearch"} // NEU
       >
         {centerContent}
       </MainLayout>

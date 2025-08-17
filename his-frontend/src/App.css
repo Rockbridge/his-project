@@ -219,14 +219,37 @@ body {
   flex-direction: column;
 }
 
-/* Unabhängige Scroller (Chrome & Safari) */
-.sidebar-scroll,
+/* Unabhängige Scroller */
+.sidebar-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px;
+}
+
+/* WICHTIG: center-scroll ist ein Flex-Container in Spaltenrichtung */
 .center-scroll {
   flex: 1 1 auto;
-  min-height: 0; /* verhindert Stretching-Bugs */
-  overflow: auto; /* eigener Scrollbereich */
-  -webkit-overflow-scrolling: touch; /* iOS Safari smooth scrolling */
+  min-height: 0;
+  overflow: auto; /* Standard */
+  -webkit-overflow-scrolling: touch;
   padding: 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Center-Scroll nur deaktivieren, wenn Patientensuche aktiv ist */
+.center-scroll.no-center-scroll {
+  overflow: hidden; /* outer scroll AUS */
+}
+
+/* Patientensuche: Top-Level-Pane auf volle Höhe strecken */
+.center-scroll.no-center-scroll > .split-left {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 /* ========== Demo-Toolbar im Center-Pane ========== */
@@ -310,6 +333,13 @@ body {
   border-radius: 8px;
   background: var(--bg-secondary);
 }
+/* Der Pane-Container muss ein Flex-Column mit eigenem Scroller sein */
+.split-left,
+.single-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0; /* wichtig für korrektes Flex-Overflow */
+}
 .pane-title {
   font-size: 12px;
   font-weight: 600;
@@ -321,9 +351,18 @@ body {
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
-  -webkit-overflow-scrolling: touch;
-  padding: 10px;
 }
+/* Verhindere verschachtelte Scrollcontainer in der Tabelle */
+.pane-scroll .table-wrap {
+  overflow: visible; /* statt auto/scroll */
+}
+
+.pane-footer {
+  border-top: 1px solid var(--border-color);
+  padding: 8px 10px;
+  background: var(--bg-secondary);
+}
+
 .row {
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
@@ -410,19 +449,14 @@ body {
 
 /* ===== Patientensuche: UI-Bausteine ===== */
 .subtoolbar {
-  position: sticky;
-  top: 0;
-  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 8px 12px;
-  margin: -8px -8px 12px -8px; /* gleicht Innenabstand im pane-scroll aus */
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-color);
+  padding: 8px 10px;
+  margin: 8px 10px; /* ober-/unterhalb etwas Luft */
+  background: transparent; /* keine eigene Fläche nötig */
 }
-
 .subtoolbar-left {
   display: flex;
   gap: 8px;
@@ -437,16 +471,21 @@ body {
   width: 100%;
   overflow: auto;
 }
+
 .table {
   width: 100%;
   border-collapse: collapse;
   font-size: 14px;
+  table-layout: fixed; /* stabilisiert Spaltenbreiten/Header beim Scrollen */
 }
+
 .table thead th {
   position: sticky;
-  top: 0; /* sticky unterhalb der Subtoolbar */
+  top: 0; /* klebt oben im .pane-scroll */
+  z-index: 2; /* über den Zeilen */
   background: var(--gray-50);
   border-bottom: 1px solid var(--border-color);
+  box-shadow: 0 1px 0 var(--border-color); /* optische Trennlinie beim Ankleben */
   text-align: left;
   padding: 8px;
   white-space: nowrap;
@@ -513,4 +552,12 @@ body {
 }
 .alert-error {
   /* semantic alias */
+}
+
+/* Patientensuche: Zeilen weiß, Hover wie gehabt */
+.split-left[aria-label="Patientensuche"] .table tbody tr {
+  background: #fff;
+}
+.split-left[aria-label="Patientensuche"] .table tbody tr:hover {
+  background: var(--gray-100);
 }
