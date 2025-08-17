@@ -36,3 +36,5 @@ logs/
 *~
 backup/
 Sources/
+*.claude
+*.old
