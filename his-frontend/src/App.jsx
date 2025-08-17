@@ -23,6 +23,7 @@ function Header() {
 
 function Tabs({ active, onChange }) {
   const tabs = [
+    { id: "patientSearch", label: "Patientensuche", icon: "🔎" },
     { id: "dashboard", label: "Dashboard", icon: "📊" },
     { id: "patients", label: "Patients", icon: "👥" },
     { id: "reports", label: "Reports", icon: "📋" },
@@ -151,6 +152,283 @@ function ModulePatientsSplit() {
   );
 }
 
+/* ========= Modul: Patientensuche ========= */
+
+/** Gateway-Settings (Basic Auth analog App.jsx.old) */
+const BASE_URL = "http://localhost:8080/api/v1";
+const AUTH_HEADER = "Basic " + btoa("admin:dev-password"); // TODO: später aus Config/ENV laden
+const PAGE_SIZE = 12;
+
+/** dünner API-Wrapper */
+async function apiRequest(endpoint, init = {}) {
+  const res = await fetch(`${BASE_URL}${endpoint}`, {
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: AUTH_HEADER,
+      ...(init.headers || {}),
+    },
+    ...init,
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+  return res.json();
+}
+
+/** Debounce-Hook für Suche */
+function useDebounced(value, delay = 350) {
+  const [debounced, setDebounced] = React.useState(value);
+  React.useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(t);
+  }, [value, delay]);
+  return debounced;
+}
+
+/** Daten-Hook für Patientensuche (Sort-Stub vorhanden, aber noch ohne API-Weitergabe) */
+function usePatientSearch({ query, page, sort }) {
+  const debouncedQuery = useDebounced(query);
+  const [rows, setRows] = React.useState([]);
+  const [total, setTotal] = React.useState(0);
+  const [pageCount, setPageCount] = React.useState(0);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState(null);
+
+  React.useEffect(() => {
+    // leerer Query -> sofort zurücksetzen
+    if (!debouncedQuery || !debouncedQuery.trim()) {
+      setRows([]);
+      setTotal(0);
+      setPageCount(0);
+      setError(null);
+      return;
+    }
+
+    const ctrl = new AbortController();
+    setLoading(true);
+    setError(null);
+
+    apiRequest(
+      `/patients/search?searchTerm=${encodeURIComponent(
+        debouncedQuery.trim()
+      )}&page=${page}&size=${PAGE_SIZE}`,
+      { signal: ctrl.signal }
+    )
+      .then((data) => {
+        // Erwartete Struktur: Page<PatientSummary>
+        setRows(data.content || []);
+        setTotal(
+          typeof data.totalElements === "number" ? data.totalElements : 0
+        );
+        setPageCount(typeof data.totalPages === "number" ? data.totalPages : 0);
+      })
+      .catch((e) => {
+        if (e.name !== "AbortError") setError(e);
+      })
+      .finally(() => setLoading(false));
+
+    return () => ctrl.abort();
+  }, [debouncedQuery, page /* sort (Stub) */]);
+
+  return { rows, total, pageCount, loading, error };
+}
+
+/** Toolbar innerhalb des Pane (sticky im Scroll-Container) */
+function PatientSearchSubToolbar({
+  query,
+  onQueryChange,
+  total,
+  loading,
+  onReset,
+}) {
+  return (
+    <div className="subtoolbar">
+      <div className="subtoolbar-left">
+        <input
+          className="input"
+          placeholder="Name oder KVNR eingeben…"
+          value={query}
+          onChange={(e) => onQueryChange(e.target.value)}
+          aria-label="Patientensuche"
+        />
+        <button className="btn" onClick={onReset} disabled={!query}>
+          Zurücksetzen
+        </button>
+      </div>
+      <div className="subtoolbar-right">
+        {loading ? (
+          <span className="muted">Laden…</span>
+        ) : (
+          <span className="muted">Treffer: {total}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** einfache Pagination unten */
+function Pagination({ page, pageCount, onChange }) {
+  return (
+    <div className="pagination">
+      <button
+        className="btn"
+        disabled={page <= 0}
+        onClick={() => onChange(page - 1)}
+      >
+        ‹ Zurück
+      </button>
+      <span className="muted">
+        Seite {page + 1} / {Math.max(pageCount, 1)}
+      </span>
+      <button
+        className="btn"
+        disabled={page + 1 >= pageCount}
+        onClick={() => onChange(page + 1)}
+      >
+        Weiter ›
+      </button>
+    </div>
+  );
+}
+
+/** Tabellenkomponente */
+function PatientTable({ rows }) {
+  const fmtDate = (iso) => {
+    try {
+      if (!iso) return "—";
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return "—";
+      return d.toLocaleDateString("de-DE");
+    } catch {
+      return "—";
+    }
+  };
+
+  const mapGender = (g) => {
+    switch (g) {
+      case "MALE":
+        return "männlich";
+      case "FEMALE":
+        return "weiblich";
+      case "OTHER":
+        return "divers";
+      case "UNKNOWN":
+      default:
+        return "unbekannt";
+    }
+  };
+
+  const mapStatus = (s) => {
+    // Enum InsuranceStatus: ACTIVE, INACTIVE, SUSPENDED, CANCELLED, UNKNOWN
+    const m = {
+      ACTIVE: "AKTIV",
+      INACTIVE: "INAKTIV",
+      SUSPENDED: "PAUSIERT",
+      CANCELLED: "STORNIERT",
+      UNKNOWN: "UNBEKANNT",
+    };
+    return m[s] || s || "—";
+  };
+
+  return (
+    <div className="table-wrap">
+      <table
+        className="table"
+        role="table"
+        aria-label="Suchergebnisse Patienten"
+      >
+        <thead>
+          <tr>
+            <th>Pat.-ID</th>
+            <th>Patientenname</th>
+            <th>Geburtsdatum</th>
+            <th>Geschlecht</th>
+            <th>Versicherung</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 ? (
+            <tr>
+              <td colSpan={6} className="empty">
+                Keine Daten
+              </td>
+            </tr>
+          ) : (
+            rows.map((p) => (
+              <tr key={p.id}>
+                <td>{p.id}</td>
+                <td>{p.fullName || "—"}</td>
+                <td>{fmtDate(p.birthDate)}</td>
+                <td>{mapGender(p.gender)}</td>
+                <td>{p.insuranceCompanyName || "—"}</td>
+                <td>
+                  <span
+                    className={`badge badge-${(
+                      p.insuranceStatus || "UNKNOWN"
+                    ).toLowerCase()}`}
+                  >
+                    {mapStatus(p.insuranceStatus)}
+                  </span>
+                </td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** Page/Pane in „Dashboard“-Optik, volle Breite */
+function ModulePatientSearch() {
+  const [query, setQuery] = React.useState("");
+  const [page, setPage] = React.useState(0);
+  const [sort, setSort] = React.useState({ by: null, dir: "asc" }); // Stub
+
+  const { rows, total, pageCount, loading, error } = usePatientSearch({
+    query,
+    page,
+    sort,
+  });
+
+  // Reset page bei Query-Wechsel
+  React.useEffect(() => {
+    setPage(0);
+  }, [query]);
+
+  return (
+    <div className="split-left" role="region" aria-label="Patientensuche">
+      <div className="pane-title">Patientensuche</div>
+      <div className="pane-scroll">
+        <PatientSearchSubToolbar
+          query={query}
+          onQueryChange={setQuery}
+          total={total}
+          loading={loading}
+          onReset={() => setQuery("")}
+        />
+
+        {(!query || !query.trim()) && (
+          <div className="placeholder">
+            Bitte geben Sie einen Suchbegriff (Name oder KVNR) ein.
+          </div>
+        )}
+
+        {error && (
+          <div className="alert alert-error">
+            {String(error.message || error)}
+          </div>
+        )}
+
+        {!error && query && <PatientTable rows={rows} />}
+
+        {query && pageCount > 1 && (
+          <Pagination page={page} pageCount={pageCount} onChange={setPage} />
+        )}
+      </div>
+    </div>
+  );
+}
+
 /** App-Rahmen mit Modulumschaltung per Tabs **/
 export default function App() {
   const [active, setActive] = useState("dashboard");
@@ -196,25 +474,29 @@ export default function App() {
 
   const centerContent = (
     <>
-      <div className="toolbar-stub">
-        <div className="toolbar-left">
-          <input className="input" placeholder="Suchen…" />
-          <button className="btn btn-primary">Neu</button>
+      {active !== "patientSearch" && (
+        <div className="toolbar-stub">
+          <div className="toolbar-left">
+            <input className="input" placeholder="Suchen…" />
+            <button className="btn btn-primary">Neu</button>
+          </div>
+          <div className="toolbar-right">
+            <button className="btn" onClick={() => setLeftOpen((v) => !v)}>
+              {leftOpen
+                ? "Linke Sidebar ausblenden"
+                : "Linke Sidebar einblenden"}
+            </button>
+            <button className="btn" onClick={() => setRightOpen((v) => !v)}>
+              {rightOpen
+                ? "Rechte Sidebar ausblenden"
+                : "Rechte Sidebar einblenden"}
+            </button>
+          </div>
         </div>
-        <div className="toolbar-right">
-          <button className="btn" onClick={() => setLeftOpen((v) => !v)}>
-            {leftOpen ? "Linke Sidebar ausblenden" : "Linke Sidebar einblenden"}
-          </button>
-          <button className="btn" onClick={() => setRightOpen((v) => !v)}>
-            {rightOpen
-              ? "Rechte Sidebar ausblenden"
-              : "Rechte Sidebar einblenden"}
-          </button>
-        </div>
-      </div>
-
+      )}
       {active === "dashboard" && <ModuleDashboard />}
       {active === "patients" && <ModulePatientsSplit />}
+      {active === "patientSearch" && <ModulePatientSearch />}
       {active === "reports" && (
         <div className="demo-block">
           <h2>Reports</h2>

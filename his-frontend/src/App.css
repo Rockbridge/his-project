@@ -407,3 +407,110 @@ body {
   border-color: var(--primary-blue);
   background: var(--primary-blue-bg);
 }
+
+/* ===== Patientensuche: UI-Bausteine ===== */
+.subtoolbar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  margin: -8px -8px 12px -8px; /* gleicht Innenabstand im pane-scroll aus */
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.subtoolbar-left {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.subtoolbar-right {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.table-wrap {
+  width: 100%;
+  overflow: auto;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.table thead th {
+  position: sticky;
+  top: 0; /* sticky unterhalb der Subtoolbar */
+  background: var(--gray-50);
+  border-bottom: 1px solid var(--border-color);
+  text-align: left;
+  padding: 8px;
+  white-space: nowrap;
+}
+.table tbody td {
+  border-bottom: 1px solid var(--border-color);
+  padding: 8px;
+  vertical-align: top;
+}
+.table tbody tr:hover {
+  background: var(--gray-100);
+}
+
+.empty {
+  text-align: center;
+  color: var(--text-secondary);
+  padding: 24px;
+}
+
+.pagination {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 12px 0 0 0;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  border: 1px solid var(--border-color);
+  background: var(--gray-50);
+}
+.badge-active {
+  border-color: var(--success-green);
+}
+.badge-inactive {
+  border-color: var(--gray-300);
+}
+.badge-suspended {
+  border-color: var(--warning-orange);
+}
+.badge-cancelled {
+  border-color: var(--danger-red);
+}
+.badge-unknown {
+  border-color: var(--gray-300);
+}
+
+.placeholder {
+  color: var(--text-secondary);
+  padding: 16px 0;
+}
+
+.alert {
+  padding: 10px 12px;
+  border: 1px solid var(--danger-red);
+  background: #fff5f5;
+  color: var(--danger-red);
+  border-radius: 6px;
+  margin: 8px 0 12px 0;
+}
+.alert-error {
+  /* semantic alias */
+}
