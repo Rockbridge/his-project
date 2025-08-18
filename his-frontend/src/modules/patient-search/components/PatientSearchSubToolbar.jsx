@@ -1,4 +1,5 @@
 import React from "react";
+import Button from "../../../components/Button";
 
 export default function PatientSearchSubToolbar({
   query,
@@ -17,9 +18,9 @@ export default function PatientSearchSubToolbar({
           onChange={(e) => onQueryChange(e.target.value)}
           aria-label="Patientensuche"
         />
-        <button className="btn" onClick={onReset} disabled={!query}>
+        <Button onClick={onReset} disabled={!query}>
           Zurücksetzen
-        </button>
+        </Button>
       </div>
       <div className="subtoolbar-right">
         {loading ? (

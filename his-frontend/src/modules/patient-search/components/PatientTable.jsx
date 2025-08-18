@@ -1,4 +1,5 @@
 import React from "react";
+import Table from "../../../components/Table";
 
 export default function PatientTable({ rows, onSelect, selectedId }) {
   const fmtDate = (iso) => {
@@ -39,7 +40,7 @@ export default function PatientTable({ rows, onSelect, selectedId }) {
 
   return (
     <div className="table-wrap">
-      <table className="table" role="table" aria-label="Suchergebnisse Patienten">
+      <Table role="table" aria-label="Suchergebnisse Patienten">
         <thead>
           <tr>
             <th>Pat.-ID</th>
@@ -86,7 +87,7 @@ export default function PatientTable({ rows, onSelect, selectedId }) {
             ))
           )}
         </tbody>
-      </table>
+      </Table>
     </div>
   );
 }
