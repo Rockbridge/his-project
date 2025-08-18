@@ -1,5 +1,6 @@
 import React from "react";
 import "./App.css";
+import { Header, Tabs, MainLayout, Footer } from "./layout";
 
 /**
  * Generischer Rahmen:
@@ -9,104 +10,6 @@ import "./App.css";
  * - Dazwischen: Hauptbereich (Main) mit optionalen Sidebars
  */
 
-function Header() {
-  return (
-    <header className="app-header" role="banner">
-      <div className="app-logo">Hospital Information System</div>
-      <div className="app-header-meta">
-        <span className="app-user">Dr. Schmidt</span>
-        <span className="app-role">Physician</span>
-      </div>
-    </header>
-  );
-}
-
-function Tabs({ active, onChange }) {
-  const tabs = [
-    { id: "patientSearch", label: "Patientensuche", icon: "🔎" },
-    { id: "dashboard", label: "Dashboard", icon: "📊" },
-    { id: "patients", label: "Patients", icon: "👥" },
-    { id: "reports", label: "Reports", icon: "📋" },
-    { id: "settings", label: "Settings", icon: "⚙️" },
-  ];
-  return (
-    <nav className="app-tabs" role="navigation" aria-label="Module Tabs">
-      {tabs.map((t) => (
-        <button
-          key={t.id}
-          className={`app-tab ${active === t.id ? "active" : ""}`}
-          onClick={() => onChange(t.id)}
-          type="button"
-        >
-          <span className="tab-icon" aria-hidden>
-            {t.icon}
-          </span>
-          {t.label}
-        </button>
-      ))}
-    </nav>
-  );
-}
-
-function Footer() {
-  return (
-    <footer className="app-footer" role="contentinfo">
-      <div className="footer-left">🟢 Realtime enabled</div>
-      <div className="footer-right">© 2025 HIS Demo</div>
-    </footer>
-  );
-}
-
-/**
- * MainLayout: generischer Hauptbereich mit optionalen Sidebars (links/rechts)
- */
-function MainLayout({
-  leftOpen,
-  rightOpen,
-  leftContent,
-  rightContent,
-  children,
-  noCenterScroll = false,
-}) {
-  const cls = [
-    "app-main",
-    leftOpen ? "with-left" : "no-left",
-    rightOpen ? "with-right" : "no-right",
-  ].join(" ");
-
-  return (
-    <main className={cls} role="main" aria-label="Hauptbereich">
-      {leftOpen && (
-        <aside
-          className="app-sidebar app-sidebar-left"
-          aria-label="Linke Seitenleiste"
-        >
-          <div className="sidebar-scroll">{leftContent}</div>
-        </aside>
-      )}
-
-      {/* Center */}
-      <section className="app-center" aria-label="Zentralbereich">
-        <div
-          className={`center-scroll ${
-            noCenterScroll ? "no-center-scroll" : ""
-          }`}
-        >
-          {children}
-        </div>
-      </section>
-
-      {rightOpen && (
-        <aside
-          className="app-sidebar app-sidebar-right"
-          aria-label="Rechte Seitenleiste"
-        >
-          <div className="sidebar-scroll">{rightContent}</div>
-        </aside>
-      )}
-    </main>
-  );
-}
 
 /** Beispiel-Module **/
 
@@ -188,7 +91,7 @@ function useDebounced(value, delay = 350) {
 }
 
 /** Daten-Hook für Patientensuche (Sort-Stub vorhanden, noch ohne API-Weitergabe) */
-function usePatientSearch({ query, page, sort }) {
+function usePatientSearch({ query, page /* sort */ }) {
   const debouncedQuery = useDebounced(query);
   const [rows, setRows] = React.useState([]);
   const [total, setTotal] = React.useState(0);
@@ -411,7 +314,7 @@ function ModulePatientSearch({ onSelect, selectedId }) {
   const [page, setPage] = React.useState(
     parseInt(params.get("page") || "0", 10)
   );
-  const [sort, setSort] = React.useState({ by: null, dir: "asc" }); // Stub
+  const [sort, _setSort] = React.useState({ by: null, dir: "asc" }); // Stub
 
   const { rows, total, pageCount, loading, error } = usePatientSearch({
     query,
