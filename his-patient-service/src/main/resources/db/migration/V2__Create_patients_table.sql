@@ -1,6 +1,6 @@
 -- src/main/resources/db/migration/V2__Create_patients_table.sql
 
-CREATE TABLE pvs_patient.patients (
+CREATE TABLE his_patient.patients (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     
     -- Persönliche Daten
@@ -33,12 +33,12 @@ CREATE TABLE pvs_patient.patients (
 );
 
 -- Indizes für Performance
-CREATE INDEX idx_patients_kvnr ON pvs_patient.patients(kvnr);
-CREATE INDEX idx_patients_last_name ON pvs_patient.patients(last_name);
-CREATE INDEX idx_patients_birth_date ON pvs_patient.patients(birth_date);
-CREATE INDEX idx_patients_deleted_at ON pvs_patient.patients(deleted_at);
+CREATE INDEX idx_patients_kvnr ON his_patient.patients(kvnr);
+CREATE INDEX idx_patients_last_name ON his_patient.patients(last_name);
+CREATE INDEX idx_patients_birth_date ON his_patient.patients(birth_date);
+CREATE INDEX idx_patients_deleted_at ON his_patient.patients(deleted_at);
 
 -- Kommentare für Dokumentation
-COMMENT ON TABLE pvs_patient.patients IS 'Patientenstammdaten gemäß VSDM-Standards';
-COMMENT ON COLUMN pvs_patient.patients.kvnr IS 'Krankenversichertennummer (10-stellig)';
-COMMENT ON COLUMN pvs_patient.patients.deleted_at IS 'Soft Delete Timestamp';
+COMMENT ON TABLE his_patient.patients IS 'Patientenstammdaten gemäß VSDM-Standards';
+COMMENT ON COLUMN his_patient.patients.kvnr IS 'Krankenversichertennummer (10-stellig)';
+COMMENT ON COLUMN his_patient.patients.deleted_at IS 'Soft Delete Timestamp';
