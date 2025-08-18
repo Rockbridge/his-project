@@ -44,6 +44,7 @@ function updateSearchParams(updates) {
 }
 
 export default function ModulePatientSearch({ onSelect, selectedId }) {
+
   const params = getSearchParams();
   const [query, setQuery] = React.useState(params.get("q") || "");
   const [page, setPage] = React.useState(parseInt(params.get("page") || "0", 10));

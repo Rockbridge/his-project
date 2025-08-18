@@ -28,6 +28,7 @@ function calcAge(birthIso) {
 }
 
 export default function PatientDetailSidebar({ patientId }) {
+
   const { detail, loading, error } = usePatientDetail(patientId);
 
   if (!patientId)

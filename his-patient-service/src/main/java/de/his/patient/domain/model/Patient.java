@@ -6,7 +6,7 @@ import jakarta.validation.constraints.Pattern;
 import java.time.LocalDate;
 
 @Entity
-@Table(name = "patients", indexes = {
+@Table(name = "patients", schema = "his_patient", indexes = {
         @Index(name = "idx_patient_kvnr", columnList = "kvnr", unique = true),
         @Index(name = "idx_patient_insurance_number", columnList = "insurance_number"),
 })
@@ -40,10 +40,11 @@ public class Patient extends Person {
     @Column(name = "consent_data_processing")
     private Boolean consentDataProcessing;
 
-    public Patient() {}
+    public Patient() {
+    }
 
-    public Patient(String firstName, String lastName, LocalDate birthDate, 
-                   Gender gender, String kvnr) {
+    public Patient(String firstName, String lastName, LocalDate birthDate,
+            Gender gender, String kvnr) {
         super(firstName, lastName, birthDate, gender);
         this.kvnr = kvnr;
         this.insuranceStatus = InsuranceStatus.ACTIVE;
@@ -52,32 +53,72 @@ public class Patient extends Person {
     }
 
     // Getters and Setters
-    public String getKvnr() { return kvnr; }
-    public void setKvnr(String kvnr) { this.kvnr = kvnr; }
+    public String getKvnr() {
+        return kvnr;
+    }
 
-    public String getInsuranceNumber() { return insuranceNumber; }
-    public void setInsuranceNumber(String insuranceNumber) { this.insuranceNumber = insuranceNumber; }
+    public void setKvnr(String kvnr) {
+        this.kvnr = kvnr;
+    }
 
-    public InsuranceStatus getInsuranceStatus() { return insuranceStatus; }
-    public void setInsuranceStatus(InsuranceStatus insuranceStatus) { this.insuranceStatus = insuranceStatus; }
+    public String getInsuranceNumber() {
+        return insuranceNumber;
+    }
 
-    public InsuranceType getInsuranceType() { return insuranceType; }
-    public void setInsuranceType(InsuranceType insuranceType) { this.insuranceType = insuranceType; }
+    public void setInsuranceNumber(String insuranceNumber) {
+        this.insuranceNumber = insuranceNumber;
+    }
 
-    public String getInsuranceCompanyId() { return insuranceCompanyId; }
-    public void setInsuranceCompanyId(String insuranceCompanyId) { this.insuranceCompanyId = insuranceCompanyId; }
+    public InsuranceStatus getInsuranceStatus() {
+        return insuranceStatus;
+    }
 
-    public String getInsuranceCompanyName() { return insuranceCompanyName; }
-    public void setInsuranceCompanyName(String insuranceCompanyName) { this.insuranceCompanyName = insuranceCompanyName; }
+    public void setInsuranceStatus(InsuranceStatus insuranceStatus) {
+        this.insuranceStatus = insuranceStatus;
+    }
 
-    public Boolean getConsentCommunication() { return consentCommunication; }
-    public void setConsentCommunication(Boolean consentCommunication) { this.consentCommunication = consentCommunication; }
+    public InsuranceType getInsuranceType() {
+        return insuranceType;
+    }
 
-    public Boolean getConsentDataProcessing() { return consentDataProcessing; }
-    public void setConsentDataProcessing(Boolean consentDataProcessing) { this.consentDataProcessing = consentDataProcessing; }
+    public void setInsuranceType(InsuranceType insuranceType) {
+        this.insuranceType = insuranceType;
+    }
+
+    public String getInsuranceCompanyId() {
+        return insuranceCompanyId;
+    }
+
+    public void setInsuranceCompanyId(String insuranceCompanyId) {
+        this.insuranceCompanyId = insuranceCompanyId;
+    }
+
+    public String getInsuranceCompanyName() {
+        return insuranceCompanyName;
+    }
+
+    public void setInsuranceCompanyName(String insuranceCompanyName) {
+        this.insuranceCompanyName = insuranceCompanyName;
+    }
+
+    public Boolean getConsentCommunication() {
+        return consentCommunication;
+    }
+
+    public void setConsentCommunication(Boolean consentCommunication) {
+        this.consentCommunication = consentCommunication;
+    }
+
+    public Boolean getConsentDataProcessing() {
+        return consentDataProcessing;
+    }
+
+    public void setConsentDataProcessing(Boolean consentDataProcessing) {
+        this.consentDataProcessing = consentDataProcessing;
+    }
 
     public boolean isInsuranceValid() {
-        return insuranceStatus == InsuranceStatus.ACTIVE && 
-               kvnr != null && !kvnr.isEmpty();
+        return insuranceStatus == InsuranceStatus.ACTIVE &&
+                kvnr != null && !kvnr.isEmpty();
     }
 }

@@ -20,6 +20,7 @@ export default function PatientSearchSubToolbar({
         <button className="btn" onClick={onReset} disabled={!query}>
           Zurücksetzen
         </button>
+
       </div>
       <div className="subtoolbar-right">
         {loading ? (

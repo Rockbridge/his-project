@@ -1,4 +1,5 @@
 import React from "react";
+import React from "react";
 import { MainLayout } from "../../layout";
 import ModulePatientSearch from "./components/ModulePatientSearch";
 import PatientDetailSidebar from "./components/PatientDetailSidebar";
@@ -7,6 +8,7 @@ export default function PatientSearchPage() {
   const [leftOpen, setLeftOpen] = React.useState(true);
   const [rightOpen, setRightOpen] = React.useState(false);
   const [selectedPatientId, setSelectedPatientId] = React.useState(null);
+
 
   React.useEffect(() => {
     setRightOpen(!!selectedPatientId);
@@ -56,6 +58,7 @@ export default function PatientSearchPage() {
         onSelect={setSelectedPatientId}
         selectedId={selectedPatientId}
       />
+
     </MainLayout>
   );
 }

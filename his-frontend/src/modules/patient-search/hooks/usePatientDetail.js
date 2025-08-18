@@ -1,6 +1,7 @@
 import React from "react";
 import { apiRequest } from "../api";
 
+
 export default function usePatientDetail(patientId) {
   const [detail, setDetail] = React.useState(null);
   const [loading, setLoading] = React.useState(false);
