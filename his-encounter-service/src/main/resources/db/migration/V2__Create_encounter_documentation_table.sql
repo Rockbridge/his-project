@@ -1,5 +1,5 @@
 CREATE TABLE encounter_documentation (
-    documentation_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    documentation_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     encounter_id UUID NOT NULL REFERENCES encounters(encounter_id) ON DELETE CASCADE,
     soap_section VARCHAR(50) NOT NULL,
     content_type VARCHAR(50) NOT NULL,
