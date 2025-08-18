@@ -1,5 +1,6 @@
 import React from "react";
-import { apiRequest, PAGE_SIZE } from "../api";
+import { PAGE_SIZE } from "../api";
+import { apiRequest } from "../../../api/client";
 
 function useDebounced(value, delay = 350) {
   const [debounced, setDebounced] = React.useState(value);
