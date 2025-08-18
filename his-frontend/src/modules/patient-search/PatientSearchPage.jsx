@@ -1,13 +1,14 @@
 import React from "react";
-import { useSelection } from "../../state/selection";
+import React from "react";
 import { MainLayout } from "../../layout";
 import ModulePatientSearch from "./components/ModulePatientSearch";
 import PatientDetailSidebar from "./components/PatientDetailSidebar";
 
 export default function PatientSearchPage() {
-  const { selectedPatientId } = useSelection();
   const [leftOpen, setLeftOpen] = React.useState(true);
   const [rightOpen, setRightOpen] = React.useState(false);
+  const [selectedPatientId, setSelectedPatientId] = React.useState(null);
+
 
   React.useEffect(() => {
     setRightOpen(!!selectedPatientId);
@@ -40,7 +41,7 @@ export default function PatientSearchPage() {
         </button>
       </div>
       <div className="sidebar-body">
-        <PatientDetailSidebar />
+        <PatientDetailSidebar patientId={selectedPatientId} />
       </div>
     </div>
   );
@@ -53,7 +54,11 @@ export default function PatientSearchPage() {
       rightContent={rightContent}
       noCenterScroll={true}
     >
-      <ModulePatientSearch />
+      <ModulePatientSearch
+        onSelect={setSelectedPatientId}
+        selectedId={selectedPatientId}
+      />
+
     </MainLayout>
   );
 }

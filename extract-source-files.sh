@@ -269,16 +269,23 @@ else
 fi
 
 # Backend Services extrahieren
+if [ -d "his-patient-service" ]; then
+    extract_service "Patient Service" "his-patient-service"
+else
+    echo "Warning: his-patient-service directory not found"
+fi
+
 if [ -d "his-encounter-service" ]; then
     extract_service "Encounter Service" "his-encounter-service"
 else
     echo "Warning: his-encounter-service directory not found"
 fi
 
-if [ -d "his-patient-service" ]; then
-    extract_service "Patient Service" "his-patient-service"
+# **NEU: Identity Service hinzugefügt**
+if [ -d "his-identity-service" ]; then
+    extract_service "Identity Service" "his-identity-service"
 else
-    echo "Warning: his-patient-service directory not found"
+    echo "Warning: his-identity-service directory not found"
 fi
 
 if [ -d "his-api-gateway" ]; then
@@ -316,11 +323,14 @@ echo "- Root Directory: Sources/his-project-root-source.txt"
 if [ -d "init-scripts" ]; then
     echo "- Init Scripts: Sources/Init Scripts-source.txt"
 fi
+if [ -d "his-patient-service" ]; then
+    echo "- Patient Service: Sources/Patient Service-source.txt"
+fi
 if [ -d "his-encounter-service" ]; then
     echo "- Encounter Service: Sources/Encounter Service-source.txt"
 fi
-if [ -d "his-patient-service" ]; then
-    echo "- Patient Service: Sources/Patient Service-source.txt"
+if [ -d "his-identity-service" ]; then
+    echo "- Identity Service: Sources/Identity Service-source.txt"
 fi
 if [ -d "his-api-gateway" ]; then
     echo "- API Gateway: Sources/API Gateway-source.txt"

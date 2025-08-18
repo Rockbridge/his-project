@@ -1,5 +1,4 @@
 import React from "react";
-import { useSelection } from "../../../state/selection";
 import usePatientDetail from "../hooks/usePatientDetail";
 
 function splitName(fullName) {
@@ -28,8 +27,8 @@ function calcAge(birthIso) {
   return age;
 }
 
-export default function PatientDetailSidebar() {
-  const { selectedPatientId: patientId } = useSelection();
+export default function PatientDetailSidebar({ patientId }) {
+
   const { detail, loading, error } = usePatientDetail(patientId);
 
   if (!patientId)

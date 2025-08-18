@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 
 @Entity
-@Table(name = "addresses")
+@Table(name = "addresses", schema = "his_patient")
 public class Address extends AbstractEntity {
 
     @NotNull
@@ -34,10 +34,11 @@ public class Address extends AbstractEntity {
     @Column(name = "country", length = 50)
     private String country;
 
-    public Address() {}
+    public Address() {
+    }
 
     public Address(AddressType addressType, String street, String houseNumber,
-                   String postalCode, String city, String country) {
+            String postalCode, String city, String country) {
         this.addressType = addressType;
         this.street = street;
         this.houseNumber = houseNumber;
@@ -47,27 +48,67 @@ public class Address extends AbstractEntity {
     }
 
     // Getters and Setters
-    public Person getPerson() { return person; }
-    public void setPerson(Person person) { this.person = person; }
+    public Person getPerson() {
+        return person;
+    }
 
-    public AddressType getAddressType() { return addressType; }
-    public void setAddressType(AddressType addressType) { this.addressType = addressType; }
+    public void setPerson(Person person) {
+        this.person = person;
+    }
 
-    public String getStreet() { return street; }
-    public void setStreet(String street) { this.street = street; }
+    public AddressType getAddressType() {
+        return addressType;
+    }
 
-    public String getHouseNumber() { return houseNumber; }
-    public void setHouseNumber(String houseNumber) { this.houseNumber = houseNumber; }
+    public void setAddressType(AddressType addressType) {
+        this.addressType = addressType;
+    }
 
-    public String getPostalCode() { return postalCode; }
-    public void setPostalCode(String postalCode) { this.postalCode = postalCode; }
+    public String getStreet() {
+        return street;
+    }
 
-    public String getCity() { return city; }
-    public void setCity(String city) { this.city = city; }
+    public void setStreet(String street) {
+        this.street = street;
+    }
 
-    public String getState() { return state; }
-    public void setState(String state) { this.state = state; }
+    public String getHouseNumber() {
+        return houseNumber;
+    }
 
-    public String getCountry() { return country; }
-    public void setCountry(String country) { this.country = country; }
+    public void setHouseNumber(String houseNumber) {
+        this.houseNumber = houseNumber;
+    }
+
+    public String getPostalCode() {
+        return postalCode;
+    }
+
+    public void setPostalCode(String postalCode) {
+        this.postalCode = postalCode;
+    }
+
+    public String getCity() {
+        return city;
+    }
+
+    public void setCity(String city) {
+        this.city = city;
+    }
+
+    public String getState() {
+        return state;
+    }
+
+    public void setState(String state) {
+        this.state = state;
+    }
+
+    public String getCountry() {
+        return country;
+    }
+
+    public void setCountry(String country) {
+        this.country = country;
+    }
 }
