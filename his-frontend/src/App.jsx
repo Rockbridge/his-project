@@ -382,11 +382,37 @@ function PatientTable({ rows }) {
   );
 }
 
+function getSearchParams() {
+  return new URLSearchParams(window.location.search);
+}
+
+function updateSearchParams(updates) {
+  const params = getSearchParams();
+  Object.entries(updates).forEach(([k, v]) => {
+    if (
+      v === undefined ||
+      v === null ||
+      v === "" ||
+      (v === 0 && k === "page")
+    ) {
+      params.delete(k);
+    } else {
+      params.set(k, v);
+    }
+  });
+  const newUrl = `${window.location.pathname}?${params.toString()}`;
+  window.history.replaceState({}, "", newUrl);
+}
+
 /** Page/Pane in „Dashboard“-Optik, volle Breite */
 function ModulePatientSearch() {
-  const [query, setQuery] = React.useState("");
-  const [page, setPage] = React.useState(0);
-  const [sort, setSort] = React.useState({ by: null, dir: "asc" }); // Sort-Stub
+  // Initialwerte aus URL
+  const params = getSearchParams();
+  const [query, setQuery] = React.useState(params.get("q") || "");
+  const [page, setPage] = React.useState(
+    parseInt(params.get("page") || "0", 10)
+  );
+  const [sort, setSort] = React.useState({ by: null, dir: "asc" }); // Stub
 
   const { rows, total, pageCount, loading, error } = usePatientSearch({
     query,
@@ -394,7 +420,12 @@ function ModulePatientSearch() {
     sort,
   });
 
-  // Bei Query-Änderung immer auf Seite 0 springen
+  // Query in URL schreiben
+  React.useEffect(() => {
+    updateSearchParams({ q: query, page });
+  }, [query, page]);
+
+  // Reset page bei Query-Änderung
   React.useEffect(() => {
     setPage(0);
   }, [query]);
@@ -412,7 +443,6 @@ function ModulePatientSearch() {
         onReset={() => setQuery("")}
       />
 
-      {/* Statische Fehleranzeige */}
       {error && (
         <div className="alert alert-error">
           {String(error.message || error)}
@@ -424,7 +454,6 @@ function ModulePatientSearch() {
         {!error && <PatientTable rows={rows} />}
       </div>
 
-      {/* Statischer Footer: Pagination */}
       {pageCount > 1 && (
         <div className="pane-footer">
           <Pagination page={page} pageCount={pageCount} onChange={setPage} />
