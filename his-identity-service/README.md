@@ -27,6 +27,7 @@ Der Identity-/Auth-Service stellt Benutzer- und Rollenverwaltung bereit und verg
 - Default-Port: `8083`
 - Health-Endpoint: `/actuator/health`
 - Docker-Image basiert auf `eclipse-temurin:21`.
+- Dockerfile nutzt Multi-Architecture-Basisimages (amd64/arm64)
 
 ## Zukunft
 - Erweiterung um zusätzliche Kontextparameter und feinere Policies.

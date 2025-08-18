@@ -263,6 +263,39 @@ services:
     volumes:
       - ./logs/identity:/app/logs
 
+  # Authorization Service - Port 8084
+  authorization-service:
+    build:
+      context: ./his-authorization-service
+      dockerfile: Dockerfile
+    container_name: his-authorization-service-minimal
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/his_db
+      SPRING_DATASOURCE_USERNAME: his_user
+      SPRING_DATASOURCE_PASSWORD: dev_password
+      SPRING_JPA_HIBERNATE_DDL_AUTO: none
+      SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA: his_authorization
+      SPRING_PROFILES_ACTIVE: docker-minimal
+      SERVER_PORT: 8084
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,metrics
+      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
+    ports:
+      - "8084:8084"
+    networks:
+      - his-network-minimal
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8084/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    volumes:
+      - ./logs/authorization:/app/logs
+
   # API Gateway - Port 8080
   api-gateway:
     build:
