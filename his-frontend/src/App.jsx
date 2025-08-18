@@ -387,13 +387,13 @@ function getSearchParams() {
 }
 
 function updateSearchParams(updates) {
-  const params = getSearchParams();
+  const params = new URLSearchParams(window.location.search);
   Object.entries(updates).forEach(([k, v]) => {
     if (
       v === undefined ||
       v === null ||
       v === "" ||
-      (v === 0 && k === "page")
+      (k === "page" && v === 0)
     ) {
       params.delete(k);
     } else {
@@ -432,7 +432,7 @@ function ModulePatientSearch() {
 
   return (
     <div className="split-left" role="region" aria-label="Patientensuche">
-      <div className="pane-title">Patientensuche</div>
+      {/* <div className="pane-title">Patientensuche</div> --> entfernt */}
 
       {/* Statischer Header: Suche/Info */}
       <PatientSearchSubToolbar
@@ -465,9 +465,22 @@ function ModulePatientSearch() {
 
 /** App-Rahmen mit Modulumschaltung per Tabs **/
 export default function App() {
-  const [active, setActive] = useState("patientSearch");
+  const params = new URLSearchParams(window.location.search);
+  const [active, setActive] = React.useState(
+    params.get("tab") || "patientSearch"
+  );
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(false);
+
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    params.set("tab", active);
+    window.history.replaceState(
+      {},
+      "",
+      `${window.location.pathname}?${params.toString()}`
+    );
+  }, [active]);
 
   // Sidebar-Inhalte werden von Modulen bestimmt; hier Demo
   const leftContent = (
