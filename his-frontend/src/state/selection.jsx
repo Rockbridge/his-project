@@ -1,10 +1,18 @@
-import { createContext, useContext, useState, useMemo } from "react";
+import React from "react";
 
-const SelectionContext = createContext();
+const SelectionContext = React.createContext(null);
 
-export default function SelectionProvider({ children }) {
-  const [selection, setSelection] = useState(null);
-  const value = useMemo(() => ({ selection, setSelection }), [selection]);
+export function SelectionProvider({ children }) {
+  const [selectedPatientId, setSelectedPatientId] = React.useState(null);
+  const [selectedEncounterId, setSelectedEncounterId] = React.useState(null);
+
+  const value = {
+    selectedPatientId,
+    setSelectedPatientId,
+    selectedEncounterId,
+    setSelectedEncounterId,
+  };
+
   return (
     <SelectionContext.Provider value={value}>{children}</SelectionContext.Provider>
   );
@@ -12,5 +20,9 @@ export default function SelectionProvider({ children }) {
 
 // eslint-disable-next-line react-refresh/only-export-components
 export function useSelection() {
-  return useContext(SelectionContext);
+  const ctx = React.useContext(SelectionContext);
+  if (!ctx) {
+    throw new Error("useSelection must be used within SelectionProvider");
+  }
+  return ctx;
 }
