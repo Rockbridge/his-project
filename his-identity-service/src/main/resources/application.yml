@@ -1,0 +1,31 @@
+server:
+  port: 8083
+spring:
+  application:
+    name: his-identity-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/his_db
+    username: his_user
+    password: dev_password
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        default_schema: his_auth
+  ldap:
+    urls: ldap://localhost:389/
+    base: dc=example,dc=org
+    username: cn=admin,dc=example,dc=org
+    password: admin
+  security:
+    user:
+      name: admin
+      password: dev-password
+      roles: ADMIN
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
