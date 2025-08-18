@@ -1,5 +1,5 @@
 server:
-  port: 8081 # Auf Port 8080 ändern
+  port: 8080
 
 spring:
   application:
