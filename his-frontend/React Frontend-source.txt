@@ -1,5 +1,5 @@
 # HIS React Frontend - Complete Source Code Structure
-Generated: Do 14 Aug 2025 17:19:13 CEST
+Generated: Mo 18 Aug 2025 18:50:35 CEST
 Project: Hospital Information System (HIS) - React Frontend
 =========================================================
 
@@ -10,10 +10,29 @@ Project: Hospital Information System (HIS) - React Frontend
 ./package-lock.json
 ./package.json
 ./README.md
+./src/api/client.js
 ./src/App.css
 ./src/App.jsx
+./src/components/Button.jsx
+./src/components/Modal.jsx
+./src/components/Pagination.jsx
+./src/components/Table.jsx
 ./src/index.css
+./src/layout/Footer.jsx
+./src/layout/Header.jsx
+./src/layout/index.js
+./src/layout/MainLayout.jsx
+./src/layout/Tabs.jsx
 ./src/main.jsx
+./src/modules/patient-search/api.js
+./src/modules/patient-search/components/ModulePatientSearch.jsx
+./src/modules/patient-search/components/PatientDetailSidebar.jsx
+./src/modules/patient-search/components/PatientSearchSubToolbar.jsx
+./src/modules/patient-search/components/PatientTable.jsx
+./src/modules/patient-search/hooks/usePatientDetail.js
+./src/modules/patient-search/hooks/usePatientSearch.js
+./src/modules/patient-search/PatientSearchPage.jsx
+./src/state/selection.js
 ./vite.config.js
 ```
 
@@ -29,15 +48,42 @@ Project: Hospital Information System (HIS) - React Frontend
 ├── React Frontend-source.txt
 ├── README.md
 ├── src
+│   ├── api
+│   │   └── client.js
 │   ├── App.css
 │   ├── App.jsx
 │   ├── assets
 │   │   └── react.svg
+│   ├── components
+│   │   ├── Button.jsx
+│   │   ├── Modal.jsx
+│   │   ├── Pagination.jsx
+│   │   └── Table.jsx
 │   ├── index.css
-│   └── main.jsx
+│   ├── layout
+│   │   ├── Footer.jsx
+│   │   ├── Header.jsx
+│   │   ├── index.js
+│   │   ├── MainLayout.jsx
+│   │   └── Tabs.jsx
+│   ├── main.jsx
+│   ├── modules
+│   │   └── patient-search
+│   │       ├── api.js
+│   │       ├── components
+│   │       │   ├── ModulePatientSearch.jsx
+│   │       │   ├── PatientDetailSidebar.jsx
+│   │       │   ├── PatientSearchSubToolbar.jsx
+│   │       │   └── PatientTable.jsx
+│   │       ├── hooks
+│   │       │   ├── usePatientDetail.js
+│   │       │   └── usePatientSearch.js
+│   │       └── PatientSearchPage.jsx
+│   └── state
+│       └── selection.js
 └── vite.config.js
 
-4 directories, 13 files
+12 directories, 32 files
 ```
 
 ## Source Code Files
@@ -76,1029 +122,398 @@ export default defineConfig([
 
 ```
 
+### File: ./src/api/client.js
+```javascript
+
+export const BASE_URL = "http://localhost:8080/api/v1";
+export const AUTH_HEADER = "Basic " + btoa("admin:dev-password"); // TODO: später aus ENV laden
+
+export async function apiRequest(endpoint, init = {}) {
+  const res = await fetch(`${BASE_URL}${endpoint}`, {
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: AUTH_HEADER,
+      ...(init.headers || {}),
+    },
+    ...init,
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+  return res.json();
+}
+
+```
+
 ### File: ./src/App.jsx
 ```javascript
-import React, { useState, useEffect, createContext, useContext } from "react";
+import React from "react";
 import "./App.css";
+import { Header, Tabs, MainLayout, Footer } from "./layout";
+import PatientSearchPage from "./modules/patient-search/PatientSearchPage";
 
-// ===== CONTEXT & STATE MANAGEMENT =====
-const HISContext = createContext();
+/**
+ * Generischer Rahmen:
+ * - Fixer Header (oben)
+ * - Fixe Tab-Leiste (unter dem Header)
+ * - Fixer Footer (unten)
+ * - Dazwischen: Hauptbereich (Main) mit optionalen Sidebars
+ */
 
-const HISProvider = ({ children }) => {
-  const [patients, setPatients] = useState([]);
-  const [encounters, setEncounters] = useState([]);
-  const [selectedPatient, setSelectedPatient] = useState(null);
-  const [selectedEncounters, setSelectedEncounters] = useState([]);
-  const [expandedRows, setExpandedRows] = useState(new Set());
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [user, setUser] = useState({ name: "Dr. Schmidt", role: "Physician" });
-  const [activeTab, setActiveTab] = useState("patients");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(25);
-  const [showConfigPanel, setShowConfigPanel] = useState(false);
-  const [currentDateTime, setCurrentDateTime] = useState(new Date());
+/** Beispiel-Module **/
 
-  const BASE_URL = "http://localhost:8080/api/v1";
-  const AUTH_HEADER = "Basic " + btoa("admin:dev-password");
-
-  // API Request Helper
-  const apiRequest = async (endpoint, options = {}) => {
-    try {
-      const response = await fetch(`${BASE_URL}${endpoint}`, {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: AUTH_HEADER,
-          ...options.headers,
-        },
-        ...options,
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error("API Request Error:", error);
-      throw error;
-    }
-  };
-
-  // ✅ FIXED: Load Patient Encounters with correct URL and robust error handling
-  const loadPatientEncounters = async (patientId) => {
-    console.log(`🔍 Loading encounters for patient: ${patientId}`);
-
-    try {
-      // ✅ KORREKTE URL: /encounters/patient/... (BASE_URL enthält bereits /api/v1)
-      const data = await apiRequest(
-        `/encounters/patient/${patientId}?page=0&size=10`
-      );
-      console.log(`✅ Encounter API Response for ${patientId}:`, data);
-
-      // API gibt Page-Objekt zurück mit content Array
-      if (data && data.content && Array.isArray(data.content)) {
-        console.log(
-          `✅ Found ${data.content.length} encounters for patient ${patientId}`
-        );
-        return data.content;
-      } else {
-        console.log(`ℹ️ No encounters found for patient ${patientId}`);
-        return [];
-      }
-    } catch (err) {
-      console.error(
-        `❌ Error loading encounters for patient ${patientId}:`,
-        err
-      );
-      return []; // ✅ Return empty array instead of throwing
-    }
-  };
-
-  // Load Patients
-  const loadPatients = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await apiRequest(
-        "/patients/search?searchTerm=&page=0&size=100"
-      );
-      console.log("API Response:", data);
-
-      const enhancedPatients = await Promise.all(
-        (data.content || []).map(async (patient, index) => {
-          // ✅ Robuste Encounter Loading mit Debug Logging
-          let encounters = [];
-          try {
-            encounters = await loadPatientEncounters(patient.id);
-            console.log(
-              `Patient ${patient.patientName || patient.fullName}: ${
-                encounters.length
-              } encounters loaded`
-            );
-          } catch (err) {
-            console.warn(
-              `Failed to load encounters for patient ${patient.id}:`,
-              err
-            );
-            encounters = [];
-          }
-
-          const lastEncounter = encounters.length > 0 ? encounters[0] : null;
-
-          // ✅ EINFACHE NAMEN-LOGIK: Verwende fullName direkt
-          let firstName = patient.firstName || "";
-          let lastName = patient.lastName || "";
-          let patientName = patient.fullName;
-
-          // Wenn kein fullName, konstruiere aus firstName/lastName
-          if (!patientName && (firstName || lastName)) {
-            patientName = lastName ? `${lastName}, ${firstName}` : firstName;
-          }
-
-          // Wenn gar keine Namen, verwende Fallback
-          if (!patientName) {
-            const demoNames = [
-              "Max Mustermann",
-              "Anna Schmidt",
-              "Thomas Weber",
-              "Maria Müller",
-              "Klaus Fischer",
-              "Petra Meyer",
-              "Hans Wagner",
-              "Sabine Becker",
-            ];
-            patientName =
-              demoNames[index % demoNames.length] || `Patient #${index + 1}`;
-          }
-
-          // Extrahiere firstName/lastName aus fullName falls nötig
-          if (patientName && (!firstName || !lastName)) {
-            const parts = patientName
-              .replace(/^(Dr\.|Prof\.|Herr|Frau)\s+/i, "")
-              .trim()
-              .split(" ");
-            if (parts.length >= 2) {
-              if (!firstName) firstName = parts[0];
-              if (!lastName) lastName = parts.slice(1).join(" ");
-            } else if (parts.length === 1) {
-              if (!firstName && !lastName) firstName = parts[0];
-            }
-          }
-
-          console.log(
-            `Patient ${index}: "${patientName}" with ${encounters.length} encounters (from: firstName="${patient.firstName}", lastName="${patient.lastName}", fullName="${patient.fullName}")`
-          );
-
-          return {
-            id: patient.id,
-            firstName: firstName,
-            lastName: lastName,
-            fullName: patient.fullName,
-            patientName: patientName,
-            birthDate: patient.birthDate || "1980-01-01",
-            gender: patient.gender || "UNKNOWN",
-            kvnr: patient.kvnr || `DEMO${index}`,
-            phone: patient.phone || "+49 30 12345678",
-            email: patient.email || `patient${index}@demo.com`,
-            age: patient.birthDate
-              ? calculateAge(patient.birthDate)
-              : calculateAge("1980-01-01"),
-            lastEncounter: lastEncounter ? lastEncounter.encounterDate : null,
-            encounters: encounters, // ✅ Sollte jetzt Daten enthalten!
-            status: encounters.some((e) => e.status === "IN_PROGRESS")
-              ? "in_progress"
-              : "active",
-          };
-        })
-      );
-
-      console.log(
-        "✅ Enhanced patients with encounters:",
-        enhancedPatients.map((p) => ({
-          id: p.id.substring(0, 8),
-          name: p.patientName,
-          encounters: p.encounters.length, // ✅ Debug: Zeige Encounter Count
-        }))
-      );
-      setPatients(enhancedPatients);
-    } catch (err) {
-      console.error("Load patients error:", err);
-      setError("Fehler beim Laden der Patienten: " + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Toggle Row Expansion
-  const toggleRow = (index) => {
-    const newExpandedRows = new Set(expandedRows);
-    if (newExpandedRows.has(index)) {
-      newExpandedRows.delete(index);
-    } else {
-      newExpandedRows.add(index);
-    }
-    setExpandedRows(newExpandedRows);
-  };
-
-  // Calculate Age
-  const calculateAge = (birthDate) => {
-    const today = new Date();
-    const birth = new Date(birthDate);
-    let age = today.getFullYear() - birth.getFullYear();
-    const monthDiff = today.getMonth() - birth.getMonth();
-    if (
-      monthDiff < 0 ||
-      (monthDiff === 0 && today.getDate() < birth.getDate())
-    ) {
-      age--;
-    }
-    return age;
-  };
-
-  // Search Patients
-  const handleSearch = async (term) => {
-    setSearchTerm(term);
-    setCurrentPage(1);
-
-    if (!term.trim()) {
-      loadPatients();
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const data = await apiRequest(
-        `/patients/search?searchTerm=${encodeURIComponent(
-          term
-        )}&page=0&size=100`
-      );
-      console.log("Search API Response:", data); // Debug log
-
-      const enhancedPatients = await Promise.all(
-        (data.content || []).map(async (patient, index) => {
-          console.log("Processing search patient:", patient); // Debug log
-
-          // ✅ Robuste Encounter Loading auch für Search
-          let encounters = [];
-          try {
-            encounters = await loadPatientEncounters(patient.id);
-            console.log(
-              `Search Patient ${patient.patientName || patient.fullName}: ${
-                encounters.length
-              } encounters loaded`
-            );
-          } catch (err) {
-            console.warn(
-              `Failed to load encounters for search patient ${patient.id}:`,
-              err
-            );
-            encounters = [];
-          }
-
-          const lastEncounter = encounters.length > 0 ? encounters[0] : null;
-
-          // ✅ NAMEN-FIX: Verwende fullName direkt, da Search API nur fullName liefert
-          let firstName = patient.firstName || "";
-          let lastName = patient.lastName || "";
-          let patientName = patient.fullName; // API gibt fullName zurück, nicht firstName/lastName
-
-          // Wenn kein fullName, konstruiere aus firstName/lastName (falls vorhanden)
-          if (!patientName && (firstName || lastName)) {
-            patientName = lastName ? `${lastName}, ${firstName}` : firstName;
-          }
-
-          // Wenn gar keine Namen, verwende Fallback
-          if (!patientName) {
-            patientName = `Patient ${patient.id?.substring(0, 8) || "Unknown"}`;
-          }
-
-          // Extrahiere firstName/lastName aus fullName falls nötig (für andere Komponenten)
-          if (patientName && (!firstName || !lastName)) {
-            const parts = patientName
-              .replace(/^(Dr\.|Prof\.|Herr|Frau)\s+/i, "")
-              .trim()
-              .split(" ");
-            if (parts.length >= 2) {
-              if (!firstName) firstName = parts[0];
-              if (!lastName) lastName = parts.slice(1).join(" ");
-            } else if (parts.length === 1) {
-              if (!firstName && !lastName) firstName = parts[0];
-            }
-          }
-
-          console.log(
-            `Search Patient ${index}: "${patientName}" with ${encounters.length} encounters (from fullName: "${patient.fullName}", firstName: "${patient.firstName}", lastName: "${patient.lastName}")`
-          );
-
-          return {
-            id: patient.id,
-            firstName: firstName,
-            lastName: lastName,
-            fullName: patient.fullName,
-            patientName: patientName, // ✅ Dieser wird jetzt korrekt gesetzt
-            birthDate: patient.birthDate,
-            gender: patient.gender,
-            kvnr: patient.kvnr,
-            phone: patient.phone,
-            email: patient.email,
-            age: patient.birthDate
-              ? calculateAge(patient.birthDate)
-              : "Unbekannt",
-            lastEncounter: lastEncounter ? lastEncounter.encounterDate : null,
-            encounters: encounters, // ✅ Sollte jetzt auch in Search Daten enthalten!
-            status: encounters.some((e) => e.status === "IN_PROGRESS")
-              ? "in_progress"
-              : "active",
-          };
-        })
-      );
-
-      console.log(
-        "✅ Enhanced search patients with encounters:",
-        enhancedPatients.map((p) => ({
-          id: p.id.substring(0, 8),
-          name: p.patientName,
-          encounters: p.encounters.length, // ✅ Debug: Zeige Encounter Count
-        }))
-      );
-      setPatients(enhancedPatients);
-    } catch (err) {
-      console.error("Search patients error:", err); // Debug log
-      setError("Fehler beim Suchen: " + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Update DateTime
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentDateTime(new Date());
-    }, 60000);
-
-    return () => clearInterval(timer);
-  }, []);
-
-  // Initial Load
-  useEffect(() => {
-    loadPatients();
-  }, []);
-
+function ModuleDashboard() {
   return (
-    <HISContext.Provider
-      value={{
-        patients,
-        encounters,
-        selectedPatient,
-        selectedEncounters,
-        expandedRows,
-        loading,
-        error,
-        user,
-        activeTab,
-        searchTerm,
-        currentPage,
-        itemsPerPage,
-        showConfigPanel,
-        currentDateTime,
-        loadPatients,
-        loadPatientEncounters,
-        toggleRow,
-        handleSearch,
-        setActiveTab,
-        setCurrentPage,
-        setItemsPerPage,
-        setShowConfigPanel,
-        setError,
-      }}
-    >
-      {children}
-    </HISContext.Provider>
-  );
-};
-
-// ===== HEADER COMPONENT =====
-const Header = () => {
-  const { user, currentDateTime, setShowConfigPanel } = useContext(HISContext);
-
-  const formatDateTime = (date) => {
-    const options = {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    };
-    return date.toLocaleDateString("de-DE", options);
-  };
-
-  return (
-    <header className="his-header">
-      <div className="his-header-left">
-        <div className="his-logo">
-          <span className="icon icon-hospital"></span>
-          Hospital Information System
+    <div className="single-root">
+      <div className="single-pane" role="region" aria-label="Dashboard – Liste">
+        <div className="pane-title">Liste</div>
+        <div className="pane-scroll">
+          {Array.from({ length: 60 }).map((_, i) => (
+            <div key={i} className="row">
+              Eintrag {i + 1}
+            </div>
+          ))}
         </div>
-        <button
-          className="his-menu-button"
-          onClick={() => setShowConfigPanel(true)}
-        >
-          <span className="icon icon-settings"></span>
-          Konfiguration
+      </div>
+    </div>
+  );
+}
+
+function ModulePatientsSplit() {
+  return (
+    <div className="split-root">
+      <div className="split-left">
+        <div className="pane-title">Liste</div>
+        <div className="pane-scroll">
+          {Array.from({ length: 60 }).map((_, i) => (
+            <div key={i} className="row">
+              Patient {i + 1}
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="split-right">
+        <div className="pane-title">Details</div>
+        <div className="pane-scroll">
+          <p>
+            Langer Detailtext … (unabhängig scrollbar). Hier könnten
+            Encounter-Details, SOAP-Notizen, etc. stehen.
+          </p>
+          {Array.from({ length: 30 }).map((_, i) => (
+            <p key={i}>Absatz {i + 1}: Lorem ipsum dolor sit amet…</p>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** App-Rahmen mit Modulumschaltung per Tabs **/
+export default function App() {
+  // --- URL-Sync: aktiver Tab (Default: patientSearch)
+  const urlParams = new URLSearchParams(window.location.search);
+  const [active, setActive] = React.useState(
+    urlParams.get("tab") || "patientSearch"
+  );
+
+  React.useEffect(() => {
+    const p = new URLSearchParams(window.location.search);
+    p.set("tab", active);
+    window.history.replaceState(
+      {},
+      "",
+      `${window.location.pathname}?${p.toString()}`
+    );
+  }, [active]);
+
+  // --- Sidebars für andere Module
+  const [leftOpen, setLeftOpen] = React.useState(true);
+  const [rightOpen, setRightOpen] = React.useState(false);
+
+  const leftContent = (
+    <div className="sidebar-section">
+      <div className="sidebar-header">
+        <strong>Filter</strong>
+        <button className="chip" onClick={() => setLeftOpen(false)}>
+          ×
         </button>
       </div>
-      <div className="his-header-right">
-        <div className="his-datetime">
-          <span className="icon icon-calendar"></span>
-          <span>{formatDateTime(currentDateTime)}</span>
+      <div className="sidebar-body">
+        {Array.from({ length: 20 }).map((_, i) => (
+          <label key={i} className="filter-row">
+            <input type="checkbox" /> Option {i + 1}
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+
+  const rightContent = (
+    <div className="sidebar-section">
+      <div className="sidebar-header">
+        <strong>Werkzeuge</strong>
+        <button className="chip" onClick={() => setRightOpen(false)}>
+          ×
+        </button>
+      </div>
+      <div className="sidebar-body">
+        {Array.from({ length: 30 }).map((_, i) => (
+          <div key={i} className="tool-row">
+            Tool #{i + 1}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const centerContent = (
+    <>
+      <div className="toolbar-stub">
+        <div className="toolbar-left">
+          <input className="input" placeholder="Suchen…" />
+          <button className="btn btn-primary">Neu</button>
         </div>
-        <div className="his-user-info">
-          <span className="icon icon-user"></span>
-          {user.name}
+        <div className="toolbar-right">
+          <button className="btn" onClick={() => setLeftOpen((v) => !v)}>
+            {leftOpen
+              ? "Linke Sidebar ausblenden"
+              : "Linke Sidebar einblenden"}
+          </button>
+          <button className="btn" onClick={() => setRightOpen((v) => !v)}>
+            {rightOpen
+              ? "Rechte Sidebar ausblenden"
+              : "Rechte Sidebar einblenden"}
+          </button>
         </div>
+      </div>
+
+      {active === "dashboard" && <ModuleDashboard />}
+      {active === "patients" && <ModulePatientsSplit />}
+      {active === "reports" && <div className="row">Reports (Stub)</div>}
+      {active === "settings" && <div className="row">Settings (Stub)</div>}
+    </>
+  );
+
+  return (
+    <div className="app-shell">
+      {/* Fixe obere Bereiche */}
+      <div className="top-fixed">
+        <Header />
+        <Tabs active={active} onChange={setActive} />
+      </div>
+
+      {/* Hauptbereich */}
+      {active === "patientSearch" ? (
+        <PatientSearchPage />
+      ) : (
+        <MainLayout
+          leftOpen={leftOpen}
+          rightOpen={rightOpen}
+          leftContent={leftContent}
+          rightContent={rightContent}
+        >
+          {centerContent}
+        </MainLayout>
+      )}
+
+      {/* Fixer Footer */}
+      <Footer />
+    </div>
+  );
+}
+
+```
+
+### File: ./src/components/Button.jsx
+```javascript
+import React from "react";
+
+export default function Button({ className = "", ...props }) {
+  return <button className={`btn ${className}`.trim()} {...props} />;
+}
+
+```
+
+### File: ./src/components/Modal.jsx
+```javascript
+import React from "react";
+import Button from "./Button";
+
+export default function Modal({ children, onClose }) {
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-content">{children}</div>
+        {onClose && (
+          <div className="modal-actions">
+            <Button onClick={onClose}>Schließen</Button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+```
+
+### File: ./src/components/Pagination.jsx
+```javascript
+import React from "react";
+import Button from "./Button";
+
+export default function Pagination({ page, pageCount, onChange }) {
+  return (
+    <div className="pagination">
+      <Button disabled={page <= 0} onClick={() => onChange(page - 1)}>
+        ‹ Zurück
+      </Button>
+      <span className="muted">Seite {page + 1} / {Math.max(pageCount, 1)}</span>
+      <Button disabled={page + 1 >= pageCount} onClick={() => onChange(page + 1)}>
+        Weiter ›
+      </Button>
+    </div>
+  );
+}
+
+```
+
+### File: ./src/components/Table.jsx
+```javascript
+import React from "react";
+
+export default function Table({ className = "", ...props }) {
+  return <table className={`table ${className}`.trim()} {...props} />;
+}
+
+```
+
+### File: ./src/layout/Footer.jsx
+```javascript
+import React from "react";
+
+export default function Footer() {
+  return (
+    <footer className="app-footer" role="contentinfo">
+      <div className="footer-left">🟢 Realtime enabled</div>
+      <div className="footer-right">© 2025 HIS Demo</div>
+    </footer>
+  );
+}
+
+```
+
+### File: ./src/layout/Header.jsx
+```javascript
+import React from "react";
+
+export default function Header() {
+  return (
+    <header className="app-header" role="banner">
+      <div className="app-logo">Hospital Information System</div>
+      <div className="app-header-meta">
+        <span className="app-user">Dr. Schmidt</span>
+        <span className="app-role">Physician</span>
       </div>
     </header>
   );
-};
+}
 
-// ===== NAVIGATION COMPONENT =====
-const Navigation = () => {
-  const { activeTab, setActiveTab } = useContext(HISContext);
+```
 
-  const tabs = [
-    { id: "patients", label: "Patienten" },
-    { id: "encounters", label: "Begegnungen" },
-    { id: "appointments", label: "Termine" },
-    { id: "reports", label: "Berichte" },
-    { id: "administration", label: "Administration" },
-  ];
+### File: ./src/layout/index.js
+```javascript
+export { default as Header } from "./Header";
+export { default as Tabs } from "./Tabs";
+export { default as MainLayout } from "./MainLayout";
+export { default as Footer } from "./Footer";
+
+```
+
+### File: ./src/layout/MainLayout.jsx
+```javascript
+import React from "react";
+
+/**
+ * MainLayout: generischer Hauptbereich mit optionalen Sidebars (links/rechts)
+ */
+export default function MainLayout({
+  leftOpen,
+  rightOpen,
+  leftContent,
+  rightContent,
+  children,
+  noCenterScroll = false,
+}) {
+  const cls = [
+    "app-main",
+    leftOpen ? "with-left" : "no-left",
+    rightOpen ? "with-right" : "no-right",
+  ].join(" ");
 
   return (
-    <nav className="his-nav-tabs">
-      {tabs.map((tab) => (
-        <button
-          key={tab.id}
-          className={`his-nav-tab ${activeTab === tab.id ? "active" : ""}`}
-          onClick={() => setActiveTab(tab.id)}
+    <main className={cls} role="main" aria-label="Hauptbereich">
+      {leftOpen && (
+        <aside
+          className="app-sidebar app-sidebar-left"
+          aria-label="Linke Seitenleiste"
         >
-          {tab.label}
+          <div className="sidebar-scroll">{leftContent}</div>
+        </aside>
+      )}
+
+      {/* Center */}
+      <section className="app-center" aria-label="Zentralbereich">
+        <div
+          className={`center-scroll ${
+            noCenterScroll ? "no-center-scroll" : ""
+          }`}
+        >
+          {children}
+        </div>
+      </section>
+
+      {rightOpen && (
+        <aside
+          className="app-sidebar app-sidebar-right"
+          aria-label="Rechte Seitenleiste"
+        >
+          <div className="sidebar-scroll">{rightContent}</div>
+        </aside>
+      )}
+    </main>
+  );
+}
+
+```
+
+### File: ./src/layout/Tabs.jsx
+```javascript
+import React from "react";
+
+export default function Tabs({ active, onChange }) {
+  const tabs = [
+    { id: "patientSearch", label: "Patientensuche", icon: "🔎" },
+    { id: "dashboard", label: "Dashboard", icon: "📊" },
+    { id: "patients", label: "Patients", icon: "👥" },
+    { id: "reports", label: "Reports", icon: "📋" },
+    { id: "settings", label: "Settings", icon: "⚙️" },
+  ];
+  return (
+    <nav className="app-tabs" role="navigation" aria-label="Module Tabs">
+      {tabs.map((t) => (
+        <button
+          key={t.id}
+          className={`app-tab ${active === t.id ? "active" : ""}`}
+          onClick={() => onChange(t.id)}
+          type="button"
+        >
+          <span className="tab-icon" aria-hidden>
+            {t.icon}
+          </span>
+          {t.label}
         </button>
       ))}
     </nav>
   );
-};
-
-// ===== TOOLBAR COMPONENT =====
-const Toolbar = () => {
-  const { searchTerm, handleSearch, loadPatients } = useContext(HISContext);
-
-  return (
-    <div className="his-toolbar">
-      <div className="his-toolbar-left">
-        <div className="his-search-container">
-          <span className="icon icon-search his-search-icon"></span>
-          <input
-            type="text"
-            className="his-search-input"
-            placeholder="Patienten suchen..."
-            value={searchTerm}
-            onChange={(e) => handleSearch(e.target.value)}
-          />
-        </div>
-        <button className="his-btn his-btn-secondary">
-          <span className="icon icon-filter"></span>
-          Filter
-        </button>
-        <button
-          className="his-btn his-btn-secondary"
-          onClick={() =>
-            document.querySelector(".his-config-panel").classList.toggle("open")
-          }
-        >
-          <span className="icon icon-settings"></span>
-          Spalten
-        </button>
-      </div>
-      <div className="his-section-meta">
-        <span className="icon icon-react"></span>
-        Echtzeitdaten aktiviert
-        <button className="his-btn his-btn-secondary" onClick={loadPatients}>
-          <span className="icon icon-refresh"></span>
-          Aktualisieren
-        </button>
-      </div>
-    </div>
-  );
-};
-
-// ===== PATIENT LIST COMPONENT =====
-const PatientList = () => {
-  const {
-    patients,
-    loading,
-    error,
-    expandedRows,
-    toggleRow,
-    currentPage,
-    itemsPerPage,
-  } = useContext(HISContext);
-
-  const formatDate = (dateString) => {
-    if (!dateString) return "-";
-    return new Date(dateString).toLocaleDateString("de-DE");
-  };
-
-  const getStatusText = (status) => {
-    const statusMap = {
-      active: "Aktiv",
-      in_progress: "In Behandlung",
-      completed: "Abgeschlossen",
-      cancelled: "Storniert",
-    };
-    return statusMap[status] || status;
-  };
-
-  const getGenderText = (gender) => {
-    const genderMap = {
-      MALE: "M",
-      FEMALE: "W",
-      DIVERSE: "D",
-    };
-    return genderMap[gender] || gender;
-  };
-
-  // Pagination
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = Math.min(startIndex + itemsPerPage, patients.length);
-  const pagePatients = patients.slice(startIndex, endIndex);
-
-  if (loading) {
-    return (
-      <div className="his-loading">
-        <div className="loading-spinner"></div>
-        <p>Lade Patienten...</p>
-      </div>
-    );
-  }
-
-  return (
-    <>
-      {error && (
-        <div className="his-error-message">
-          <span className="error-icon">⚠️</span>
-          {error}
-        </div>
-      )}
-
-      <div className="his-list-container">
-        <table className="his-list">
-          <thead>
-            <tr>
-              <th className="his-icon-column"></th>
-              <th style={{ width: "15%" }}>Patient-ID</th>
-              <th style={{ width: "25%" }}>Name</th>
-              <th style={{ width: "12%" }}>Geburtsdatum</th>
-              <th style={{ width: "10%" }}>Alter</th>
-              <th style={{ width: "8%" }}>Geschlecht</th>
-              <th style={{ width: "12%" }}>Status</th>
-              <th style={{ width: "18%" }}>Letzte Begegnung</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pagePatients.map((patient, index) => {
-              const actualIndex = startIndex + index;
-              const isExpanded = expandedRows.has(actualIndex);
-
-              return (
-                <React.Fragment key={patient.id}>
-                  <tr
-                    className={`his-list-row ${isExpanded ? "expanded" : ""}`}
-                    onClick={() => toggleRow(actualIndex)}
-                  >
-                    <td className="his-icon-column">
-                      <span
-                        className={`his-expand-icon icon-chevron ${
-                          isExpanded ? "expanded" : ""
-                        }`}
-                      ></span>
-                    </td>
-                    <td>{patient.kvnr || patient.id}</td>
-                    <td>
-                      <strong>{patient.patientName}</strong>
-                    </td>
-                    <td>{formatDate(patient.birthDate)}</td>
-                    <td>{patient.age}</td>
-                    <td>{getGenderText(patient.gender)}</td>
-                    <td>
-                      <span className={`his-status ${patient.status}`}>
-                        {getStatusText(patient.status)}
-                      </span>
-                    </td>
-                    <td>{formatDate(patient.lastEncounter)}</td>
-                  </tr>
-
-                  {isExpanded && (
-                    <tr className="his-child-row show">
-                      <td colSpan="8">
-                        <EncounterDetails patient={patient} />
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
-              );
-            })}
-          </tbody>
-        </table>
-
-        {patients.length === 0 && !loading && (
-          <div className="his-empty-state">
-            <span className="empty-icon">📋</span>
-            <h3>Keine Patienten gefunden</h3>
-            <p>Keine Patienten entsprechen den Suchkriterien</p>
-          </div>
-        )}
-      </div>
-    </>
-  );
-};
-
-// ===== ENCOUNTER DETAILS COMPONENT =====
-const EncounterDetails = ({ patient }) => {
-  const encounters = patient.encounters || [];
-
-  if (encounters.length === 0) {
-    return (
-      <div
-        style={{
-          padding: "20px",
-          textAlign: "center",
-          color: "var(--text-secondary)",
-        }}
-      >
-        <p>Keine Encounters für diesen Patienten verfügbar</p>
-      </div>
-    );
-  }
-
-  const formatDateTime = (dateTimeString) => {
-    if (!dateTimeString) return "Unbekannt";
-    return new Date(dateTimeString).toLocaleString("de-DE");
-  };
-
-  const getTypeIcon = (type) => {
-    const icons = {
-      INITIAL: "🆕",
-      CONSULTATION: "👨‍⚕️",
-      EMERGENCY: "🚨",
-      FOLLOW_UP: "🔄",
-      ROUTINE: "📝",
-    };
-    return icons[type] || "📋";
-  };
-
-  const getStatusColor = (status) => {
-    const colors = {
-      PLANNED: "#059669",
-      IN_PROGRESS: "#d97706",
-      COMPLETED: "#2563eb",
-      CANCELLED: "#dc2626",
-    };
-    return colors[status] || "#6b7280";
-  };
-
-  return (
-    <div style={{ padding: "20px" }}>
-      <h4 style={{ marginBottom: "15px", color: "var(--text-primary)" }}>
-        📋 Encounters ({encounters.length})
-      </h4>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(350px, 1fr))",
-          gap: "15px",
-        }}
-      >
-        {encounters.slice(0, 3).map((encounter, index) => (
-          <div
-            key={encounter.id || index}
-            style={{
-              background: "var(--bg-primary)",
-              border: "1px solid var(--border-color)",
-              borderRadius: "8px",
-              padding: "15px",
-              borderLeft: `4px solid ${getStatusColor(encounter.status)}`,
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: "10px",
-              }}
-            >
-              <div
-                style={{ display: "flex", alignItems: "center", gap: "8px" }}
-              >
-                <span style={{ fontSize: "1.2em" }}>
-                  {getTypeIcon(encounter.type)}
-                </span>
-                <strong>{encounter.type || "Unbekannt"}</strong>
-              </div>
-              <span
-                style={{
-                  padding: "4px 8px",
-                  borderRadius: "12px",
-                  fontSize: "0.8em",
-                  fontWeight: "600",
-                  color: "white",
-                  backgroundColor: getStatusColor(encounter.status),
-                }}
-              >
-                {encounter.status || "UNKNOWN"}
-              </span>
-            </div>
-
-            <div style={{ fontSize: "0.9em", color: "var(--text-secondary)" }}>
-              <div style={{ marginBottom: "5px" }}>
-                <strong>📅 Datum:</strong>{" "}
-                {formatDateTime(encounter.encounterDate)}
-              </div>
-              {encounter.practitionerId && (
-                <div style={{ marginBottom: "5px" }}>
-                  <strong>👨‍⚕️ Arzt:</strong>{" "}
-                  {encounter.practitionerId.substring(0, 8)}...
-                </div>
-              )}
-              {encounter.reason && (
-                <div style={{ marginBottom: "5px" }}>
-                  <strong>📝 Grund:</strong> {encounter.reason}
-                </div>
-              )}
-              {encounter.billingContext && (
-                <div>
-                  <strong>💳 Abrechnung:</strong> {encounter.billingContext}
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {encounters.length > 3 && (
-        <div
-          style={{
-            marginTop: "15px",
-            textAlign: "center",
-            color: "var(--text-secondary)",
-            fontSize: "0.9em",
-          }}
-        >
-          ... und {encounters.length - 3} weitere Encounters
-        </div>
-      )}
-    </div>
-  );
-};
-
-// ===== PAGINATOR COMPONENT =====
-const Paginator = () => {
-  const {
-    patients,
-    currentPage,
-    itemsPerPage,
-    setCurrentPage,
-    setItemsPerPage,
-  } = useContext(HISContext);
-
-  const totalPages = Math.ceil(patients.length / itemsPerPage);
-  const startItem = (currentPage - 1) * itemsPerPage + 1;
-  const endItem = Math.min(currentPage * itemsPerPage, patients.length);
-
-  const goToPage = (page) => {
-    if (page >= 1 && page <= totalPages) {
-      setCurrentPage(page);
-    }
-  };
-
-  const changeItemsPerPage = (newItemsPerPage) => {
-    setItemsPerPage(newItemsPerPage);
-    setCurrentPage(1);
-  };
-
-  // Generate page numbers
-  const getPageNumbers = () => {
-    const pages = [];
-    const maxVisiblePages = 7;
-
-    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
-    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
-
-    if (endPage - startPage + 1 < maxVisiblePages) {
-      startPage = Math.max(1, endPage - maxVisiblePages + 1);
-    }
-
-    // Add first page if not in range
-    if (startPage > 1) {
-      pages.push(1);
-      if (startPage > 2) {
-        pages.push("...");
-      }
-    }
-
-    // Add visible pages
-    for (let i = startPage; i <= endPage; i++) {
-      pages.push(i);
-    }
-
-    // Add last page if not in range
-    if (endPage < totalPages) {
-      if (endPage < totalPages - 1) {
-        pages.push("...");
-      }
-      pages.push(totalPages);
-    }
-
-    return pages;
-  };
-
-  if (patients.length === 0) return null;
-
-  return (
-    <div className="his-paginator-container">
-      <div className="his-paginator">
-        <div className="his-paginator-info">
-          <span className="his-items-info">
-            Zeige{" "}
-            <strong>
-              {startItem}-{endItem}
-            </strong>{" "}
-            von <strong>{patients.length}</strong> Patienten
-          </span>
-        </div>
-
-        <div className="his-paginator-controls">
-          <button
-            className="his-paginator-btn his-paginator-btn-prev"
-            disabled={currentPage === 1}
-            onClick={() => goToPage(currentPage - 1)}
-          >
-            <span className="icon icon-chevron-left"></span>
-            Zurück
-          </button>
-
-          <div className="his-paginator-pages">
-            {getPageNumbers().map((page, index) =>
-              page === "..." ? (
-                <span key={index} className="his-paginator-ellipsis">
-                  ...
-                </span>
-              ) : (
-                <button
-                  key={index}
-                  className={`his-paginator-page ${
-                    currentPage === page ? "active" : ""
-                  }`}
-                  onClick={() => goToPage(page)}
-                >
-                  {page}
-                </button>
-              )
-            )}
-          </div>
-
-          <button
-            className="his-paginator-btn his-paginator-btn-next"
-            disabled={currentPage === totalPages}
-            onClick={() => goToPage(currentPage + 1)}
-          >
-            Weiter
-            <span className="icon icon-chevron-right"></span>
-          </button>
-        </div>
-
-        <div className="his-paginator-settings">
-          <label className="his-paginator-label">
-            Einträge pro Seite:
-            <select
-              className="his-paginator-select"
-              value={itemsPerPage}
-              onChange={(e) => changeItemsPerPage(parseInt(e.target.value))}
-            >
-              <option value="25">25</option>
-              <option value="50">50</option>
-              <option value="100">100</option>
-              <option value="200">200</option>
-            </select>
-          </label>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ===== CONFIGURATION PANEL =====
-const ConfigurationPanel = () => {
-  const { showConfigPanel, setShowConfigPanel } = useContext(HISContext);
-
-  return (
-    <div className={`his-config-panel ${showConfigPanel ? "open" : ""}`}>
-      <div className="his-config-header">
-        <h3>Spaltenkonfiguration</h3>
-        <button
-          onClick={() => setShowConfigPanel(false)}
-          style={{
-            float: "right",
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-          }}
-        >
-          ✕
-        </button>
-      </div>
-      <div className="his-config-content">
-        <div style={{ marginBottom: "20px" }}>
-          <h4>Sichtbare Spalten:</h4>
-          {[
-            "Patient-ID",
-            "Name",
-            "Geburtsdatum",
-            "Alter",
-            "Geschlecht",
-            "Status",
-            "Letzte Begegnung",
-          ].map((column) => (
-            <label key={column} style={{ display: "block", margin: "10px 0" }}>
-              <input type="checkbox" defaultChecked /> {column}
-            </label>
-          ))}
-        </div>
-        <div>
-          <h4>Anzeigeoptionen:</h4>
-          <label style={{ display: "block", margin: "10px 0" }}>
-            <input type="checkbox" defaultChecked /> Erweiterte Details
-          </label>
-          <label style={{ display: "block", margin: "10px 0" }}>
-            <input type="checkbox" defaultChecked /> Echtzeitaktualisierung
-          </label>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ===== MAIN CONTENT =====
-const MainContent = () => {
-  const { activeTab, patients } = useContext(HISContext);
-
-  const renderContent = () => {
-    switch (activeTab) {
-      case "patients":
-        return (
-          <>
-            <div className="his-section-header">
-              <div className="his-section-title">
-                Patienten
-                <span className="his-section-count">({patients.length})</span>
-              </div>
-              <div className="his-section-actions">
-                <button className="his-btn his-btn-secondary">
-                  <span className="icon icon-export"></span>
-                  Export
-                </button>
-                <button className="his-btn his-btn-primary">
-                  <span className="icon icon-plus"></span>
-                  Neuer Patient
-                </button>
-              </div>
-            </div>
-            <Toolbar />
-            <PatientList />
-            <Paginator />
-          </>
-        );
-      default:
-        return (
-          <div style={{ padding: "40px", textAlign: "center" }}>
-            <h2>🚧 {activeTab} - In Entwicklung</h2>
-            <p>
-              Diese Funktion wird in einer zukünftigen Version verfügbar sein.
-            </p>
-          </div>
-        );
-    }
-  };
-
-  return <main className="his-content">{renderContent()}</main>;
-};
-
-// ===== MAIN APP COMPONENT =====
-const App = () => {
-  return (
-    <div className="his-container">
-      <Header />
-      <Navigation />
-      <MainContent />
-      <ConfigurationPanel />
-    </div>
-  );
-};
-
-// ===== APP WITH PROVIDER =====
-const AppWithProvider = () => {
-  return (
-    <HISProvider>
-      <App />
-    </HISProvider>
-  );
-};
-
-export default AppWithProvider;
+}
 
 ```
 
@@ -1108,12 +523,545 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
+import { SelectionProvider } from './state/selection'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <App />
+    <SelectionProvider>
+      <App />
+    </SelectionProvider>
   </StrictMode>,
 )
+
+```
+
+### File: ./src/modules/patient-search/api.js
+```javascript
+export const PAGE_SIZE = 15;
+
+```
+
+### File: ./src/modules/patient-search/components/ModulePatientSearch.jsx
+```javascript
+import React from "react";
+import usePatientSearch from "../hooks/usePatientSearch";
+import PatientSearchSubToolbar from "./PatientSearchSubToolbar";
+import PatientTable from "./PatientTable";
+import Pagination from "../../../components/Pagination";
+import { useSelection } from "../../../state/selection";
+
+function getSearchParams() {
+  return new URLSearchParams(window.location.search);
+}
+
+function updateSearchParams(updates) {
+  const params = new URLSearchParams(window.location.search);
+  Object.entries(updates).forEach(([k, v]) => {
+    if (
+      v === undefined ||
+      v === null ||
+      v === "" ||
+      (k === "page" && v === 0)
+    ) {
+      params.delete(k);
+    } else {
+      params.set(k, v);
+    }
+  });
+  const newUrl = `${window.location.pathname}?${params.toString()}`;
+  window.history.replaceState({}, "", newUrl);
+}
+
+export default function ModulePatientSearch() {
+  const { selectedPatientId, setSelectedPatientId } = useSelection();
+  const params = getSearchParams();
+  const [query, setQuery] = React.useState(params.get("q") || "");
+  const [page, setPage] = React.useState(parseInt(params.get("page") || "0", 10));
+  const [sort, _setSort] = React.useState({ by: null, dir: "asc" }); // Stub
+
+  const { rows, total, pageCount, loading, error } = usePatientSearch({
+    query,
+    page,
+    sort,
+  });
+
+  React.useEffect(() => {
+    updateSearchParams({ q: query, page });
+  }, [query, page]);
+
+  React.useEffect(() => {
+    setPage(0);
+  }, [query]);
+
+  return (
+    <div className="split-left" role="region" aria-label="Patientensuche">
+      <PatientSearchSubToolbar
+        query={query}
+        onQueryChange={setQuery}
+        total={total}
+        loading={loading}
+        onReset={() => setQuery("")}
+      />
+
+      {error && (
+        <div className="alert alert-error">{String(error.message || error)}</div>
+      )}
+
+      <div className="pane-scroll">
+        {!error && (
+          <PatientTable rows={rows} onSelect={setSelectedPatientId} selectedId={selectedPatientId} />
+        )}
+      </div>
+
+      {pageCount > 1 && (
+        <div className="pane-footer">
+          <Pagination page={page} pageCount={pageCount} onChange={setPage} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+```
+
+### File: ./src/modules/patient-search/components/PatientDetailSidebar.jsx
+```javascript
+import React from "react";
+import { useSelection } from "../../../state/selection";
+import usePatientDetail from "../hooks/usePatientDetail";
+
+function splitName(fullName) {
+  if (!fullName) return { firstName: "—", lastName: "" };
+  const parts = fullName.trim().split(/\s+/);
+  if (parts.length === 1) return { firstName: parts[0], lastName: "" };
+  const lastName = parts.pop();
+  const firstName = parts.join(" ");
+  return { firstName, lastName };
+}
+
+function formatDateDE(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return isNaN(d) ? "—" : d.toLocaleDateString("de-DE");
+}
+
+function calcAge(birthIso) {
+  if (!birthIso) return null;
+  const b = new Date(birthIso);
+  if (isNaN(b)) return null;
+  const today = new Date();
+  let age = today.getFullYear() - b.getFullYear();
+  const m = today.getMonth() - b.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < b.getDate())) age--;
+  return age;
+}
+
+export default function PatientDetailSidebar() {
+  const { selectedPatientId: patientId } = useSelection();
+  const { detail, loading, error } = usePatientDetail(patientId);
+
+  if (!patientId)
+    return (
+      <div className="placeholder">Bitte wählen Sie einen Patienten aus.</div>
+    );
+  if (loading) return <div className="placeholder">Lade Patientendaten…</div>;
+  if (error)
+    return (
+      <div className="alert alert-error">{String(error.message || error)}</div>
+    );
+  if (!detail) return null;
+
+  const { firstName, lastName } = splitName(detail.fullName);
+  const age = calcAge(detail.birthDate);
+  const addr =
+    Array.isArray(detail.addresses) && detail.addresses.length > 0
+      ? detail.addresses[0]
+      : null;
+
+  return (
+    <div className="patient-sidebar">
+      {/* Kopf */}
+      <div className="patient-header">
+        <div className="patient-firstname">{firstName || "—"}</div>
+        <div className="patient-lastname">{(lastName || "").toUpperCase()}</div>
+
+        <div className="patient-age">
+          {age !== null ? `Alter: ${age} Jahre` : "Alter: —"}
+          {detail.birthDate ? ` (${formatDateDE(detail.birthDate)})` : ""}
+        </div>
+
+        <div className="patient-gender">{detail.gender || "—"}</div>
+      </div>
+
+      {/* Basis */}
+      <div className="detail-section">
+        <div className="section-title">Versicherung</div>
+        <div className="kv">
+          <span className="kv-key">KVNR:</span>
+          <span className="kv-val">{detail.kvnr || "—"}</span>
+          <span className="kv-key">Geschlecht:</span>
+          <span className="kv-val">{detail.gender || "—"}</span>
+          <span className="kv-key">Kasse:</span>
+          <span className="kv-val">{detail.insuranceCompanyName || "—"}</span>
+          <span className="kv-key">Status:</span>
+          <span className="kv-val">{detail.insuranceStatus || "—"}</span>
+        </div>
+      </div>
+
+      {/* Kontakt */}
+      <div className="detail-section">
+        <div className="section-title">Kontakt</div>
+        <div className="kv">
+          <span className="kv-key">Telefon:</span>
+          <span className="kv-val">{detail.phone || "—"}</span>
+          <span className="kv-key">E-Mail:</span>
+          <span className="kv-val">{detail.email || "—"}</span>
+        </div>
+      </div>
+
+      {/* Adresse */}
+      <div className="detail-section">
+        <div className="section-title">Adresse</div>
+        <div className="kv">
+          <span className="kv-key">Straße:</span>
+          <span className="kv-val">
+            {addr ? [addr.street, addr.houseNumber].join(" ") : "—"}
+          </span>
+          <span className="kv-key">PLZ / Ort:</span>
+          <span className="kv-val">
+            {addr ? [addr.postalCode, addr.city].join(" ") : "—"}
+          </span>
+          {(addr?.state || addr?.country) && (
+            <>
+              <span className="kv-key">Bundesland / Land:</span>
+              <span className="kv-val">
+                {[addr.state, addr.country].filter(Boolean).join(" / ")}
+              </span>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+```
+
+### File: ./src/modules/patient-search/components/PatientSearchSubToolbar.jsx
+```javascript
+import React from "react";
+import Button from "../../../components/Button";
+
+export default function PatientSearchSubToolbar({
+  query,
+  onQueryChange,
+  total,
+  loading,
+  onReset,
+}) {
+  return (
+    <div className="subtoolbar">
+      <div className="subtoolbar-left">
+        <input
+          className="input"
+          placeholder="Name oder KVNR eingeben…"
+          value={query}
+          onChange={(e) => onQueryChange(e.target.value)}
+          aria-label="Patientensuche"
+        />
+        <Button onClick={onReset} disabled={!query}>
+          Zurücksetzen
+        </Button>
+      </div>
+      <div className="subtoolbar-right">
+        {loading ? (
+          <span className="muted">Laden…</span>
+        ) : (
+          <span className="muted">Treffer: {total}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+```
+
+### File: ./src/modules/patient-search/components/PatientTable.jsx
+```javascript
+import React from "react";
+import Table from "../../../components/Table";
+
+export default function PatientTable({ rows, onSelect, selectedId }) {
+  const fmtDate = (iso) => {
+    try {
+      if (!iso) return "—";
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return "—";
+      return d.toLocaleDateString("de-DE");
+    } catch {
+      return "—";
+    }
+  };
+
+  const mapGender = (g) => {
+    switch (g) {
+      case "MALE":
+        return "männlich";
+      case "FEMALE":
+        return "weiblich";
+      case "OTHER":
+        return "divers";
+      case "UNKNOWN":
+      default:
+        return "unbekannt";
+    }
+  };
+
+  const mapStatus = (s) => {
+    const m = {
+      ACTIVE: "AKTIV",
+      INACTIVE: "INAKTIV",
+      SUSPENDED: "PAUSIERT",
+      CANCELLED: "STORNIERT",
+      UNKNOWN: "UNBEKANNT",
+    };
+    return m[s] || s || "—";
+  };
+
+  return (
+    <div className="table-wrap">
+      <Table role="table" aria-label="Suchergebnisse Patienten">
+        <thead>
+          <tr>
+            <th>Pat.-ID</th>
+            <th>KVNR</th>
+            <th>Patientenname</th>
+            <th>Geburtsdatum</th>
+            <th>Geschlecht</th>
+            <th>Versicherung</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 ? (
+            <tr>
+              <td colSpan={7} className="empty">
+                Keine Daten
+              </td>
+            </tr>
+          ) : (
+            rows.map((p) => (
+              <tr
+                key={p.id}
+                onClick={() => onSelect && onSelect(p.id)}
+                className={
+                  "clickable-row" + (selectedId === p.id ? " selected" : "")
+                }
+              >
+                <td>{p.id}</td>
+                <td>{p.kvnr || "—"}</td>
+                <td>{p.fullName || "—"}</td>
+                <td>{fmtDate(p.birthDate)}</td>
+                <td>{mapGender(p.gender)}</td>
+                <td>{p.insuranceCompanyName || "—"}</td>
+                <td>
+                  <span
+                    className={`badge badge-${(
+                      p.insuranceStatus || "UNKNOWN"
+                    ).toLowerCase()}`}
+                  >
+                    {mapStatus(p.insuranceStatus)}
+                  </span>
+                </td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </Table>
+    </div>
+  );
+}
+
+```
+
+### File: ./src/modules/patient-search/hooks/usePatientDetail.js
+```javascript
+import React from "react";
+import { apiRequest } from "../../../api/client";
+
+export default function usePatientDetail(patientId) {
+  const [detail, setDetail] = React.useState(null);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState(null);
+
+  React.useEffect(() => {
+    if (!patientId) return;
+    const ctrl = new AbortController();
+    setLoading(true);
+    setError(null);
+
+    apiRequest(`/patients/${patientId}`, { signal: ctrl.signal })
+      .then((data) => setDetail(data || null))
+      .catch((e) => {
+        if (e.name !== "AbortError") setError(e);
+      })
+      .finally(() => setLoading(false));
+
+    return () => ctrl.abort();
+  }, [patientId]);
+
+  return { detail, loading, error };
+}
+
+```
+
+### File: ./src/modules/patient-search/hooks/usePatientSearch.js
+```javascript
+import React from "react";
+import { PAGE_SIZE } from "../api";
+import { apiRequest } from "../../../api/client";
+
+function useDebounced(value, delay = 350) {
+  const [debounced, setDebounced] = React.useState(value);
+  React.useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(t);
+  }, [value, delay]);
+  return debounced;
+}
+
+export default function usePatientSearch({ query, page /* sort */ }) {
+  const debouncedQuery = useDebounced(query);
+  const [rows, setRows] = React.useState([]);
+  const [total, setTotal] = React.useState(0);
+  const [pageCount, setPageCount] = React.useState(0);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState(null);
+
+  React.useEffect(() => {
+    const ctrl = new AbortController();
+    setLoading(true);
+    setError(null);
+
+    const q = (debouncedQuery ?? "").trim();
+
+    apiRequest(
+      `/patients/search?searchTerm=${encodeURIComponent(q)}&page=${page}&size=${PAGE_SIZE}`,
+      { signal: ctrl.signal }
+    )
+      .then((data) => {
+        setRows(data.content || []);
+        setTotal(
+          typeof data.totalElements === "number" ? data.totalElements : 0
+        );
+        setPageCount(typeof data.totalPages === "number" ? data.totalPages : 0);
+      })
+      .catch((e) => {
+        if (e.name !== "AbortError") setError(e);
+      })
+      .finally(() => setLoading(false));
+
+    return () => ctrl.abort();
+  }, [debouncedQuery, page /* sort (Stub) */]);
+
+  return { rows, total, pageCount, loading, error };
+}
+
+```
+
+### File: ./src/modules/patient-search/PatientSearchPage.jsx
+```javascript
+import React from "react";
+import { useSelection } from "../../state/selection";
+import { MainLayout } from "../../layout";
+import ModulePatientSearch from "./components/ModulePatientSearch";
+import PatientDetailSidebar from "./components/PatientDetailSidebar";
+
+export default function PatientSearchPage() {
+  const { selectedPatientId } = useSelection();
+  const [leftOpen, setLeftOpen] = React.useState(true);
+  const [rightOpen, setRightOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    setRightOpen(!!selectedPatientId);
+  }, [selectedPatientId]);
+
+  const leftContent = (
+    <div className="sidebar-section">
+      <div className="sidebar-header">
+        <strong>Filter</strong>
+        <button className="chip" onClick={() => setLeftOpen(false)}>
+          ×
+        </button>
+      </div>
+      <div className="sidebar-body">
+        {Array.from({ length: 20 }).map((_, i) => (
+          <label key={i} className="filter-row">
+            <input type="checkbox" /> Option {i + 1}
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+
+  const rightContent = (
+    <div className="sidebar-section">
+      <div className="sidebar-header">
+        <strong>Patient</strong>
+        <button className="chip" onClick={() => setRightOpen(false)}>
+          ×
+        </button>
+      </div>
+      <div className="sidebar-body">
+        <PatientDetailSidebar />
+      </div>
+    </div>
+  );
+
+  return (
+    <MainLayout
+      leftOpen={leftOpen}
+      rightOpen={rightOpen}
+      leftContent={leftContent}
+      rightContent={rightContent}
+      noCenterScroll={true}
+    >
+      <ModulePatientSearch />
+    </MainLayout>
+  );
+}
+
+```
+
+### File: ./src/state/selection.js
+```javascript
+import React from "react";
+
+const SelectionContext = React.createContext(null);
+
+export function SelectionProvider({ children }) {
+  const [selectedPatientId, setSelectedPatientId] = React.useState(null);
+  const [selectedEncounterId, setSelectedEncounterId] = React.useState(null);
+
+  const value = {
+    selectedPatientId,
+    setSelectedPatientId,
+    selectedEncounterId,
+    setSelectedEncounterId,
+  };
+
+  return (
+    <SelectionContext.Provider value={value}>{children}</SelectionContext.Provider>
+  );
+}
+
+export function useSelection() {
+  const ctx = React.useContext(SelectionContext);
+  if (!ctx) {
+    throw new Error("useSelection must be used within SelectionProvider");
+  }
+  return ctx;
+}
 
 ```
 
@@ -1131,1540 +1079,2640 @@ export default defineConfig({
 
 ### File: ./src/App.css
 ```css
-/* CSS Variables - Healthcare Theme */
+/* ========== Design-Variablen (an dein bisheriges Design angelehnt) ========== */
 :root {
-    /* Colors */
-    --primary-blue: #2563eb;
-    --primary-blue-hover: #1d4ed8;
-    --primary-blue-light: #dbeafe;
-    --primary-blue-bg: #f0f9ff;
-    
-    --white: #ffffff;
-    --gray-50: #f9fafb;
-    --gray-100: #f3f4f6;
-    --gray-200: #e5e7eb;
-    --gray-300: #d1d5db;
-    --gray-400: #9ca3af;
-    --gray-500: #6b7280;
-    --gray-600: #4b5563;
-    --gray-700: #374151;
-    --gray-800: #1f2937;
-    --gray-900: #111827;
-    
-    --green-100: #dcfce7;
-    --green-500: #22c55e;
-    --green-600: #16a34a;
-    --green-700: #15803d;
-    
-    --red-100: #fee2e2;
-    --red-500: #ef4444;
-    --red-600: #dc2626;
-    
-    --yellow-100: #fef3c7;
-    --yellow-500: #f59e0b;
-    
-    /* Semantic colors */
-    --bg-primary: var(--white);
-    --bg-secondary: var(--gray-50);
-    --bg-tertiary: var(--gray-100);
-    --border-color: var(--gray-200);
-    --text-primary: var(--gray-900);
-    --text-secondary: var(--gray-600);
-    --text-muted: var(--gray-500);
-    
-    /* Shadows */
-    --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-    
-    /* Spacing */
-    --header-height: 60px;
-    --nav-height: 56px;
+  --primary-blue: #2563eb;
+  --primary-blue-hover: #1d4ed8;
+  --primary-blue-bg: #eff6ff;
+
+  --success-green: #059669;
+  --warning-orange: #d97706;
+  --danger-red: #dc2626;
+
+  --white: #fff;
+  --gray-50: #f9fafb;
+  --gray-100: #f3f4f6;
+  --gray-200: #e5e7eb;
+  --gray-300: #d1d5db;
+  --gray-500: #6b7280;
+  --gray-700: #374151;
+  --gray-900: #111827;
+
+  --text-primary: var(--gray-900);
+  --text-secondary: var(--gray-700);
+  --text-muted: var(--gray-500);
+  --bg-primary: var(--white);
+  --bg-secondary: var(--gray-50);
+  --border-color: var(--gray-200);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06);
+
+  /* Rahmenhöhen (anpassbar) */
+  --header-h: 64px;
+  --tabs-h: 48px;
+  --footer-h: 52px;
+
+  /* Sidebar-Breiten (anpassbar pro Modul) */
+  --sidebar-left-w: 280px;
+  --sidebar-right-w: 320px;
+
+  /* Abstände im Content */
+  --content-pad-x: 24px;
+  --content-pad-y: 20px;
 }
 
-/* Reset and Base Styles */
+/* Reset/Grundlagen */
 * {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
+  box-sizing: border-box;
 }
-
+html,
+body,
+#root {
+  height: 100%;
+}
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    background-color: var(--bg-secondary);
-    color: var(--text-primary);
-    line-height: 1.6;
-    overflow-x: hidden;
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-.his-container {
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
+/* ========== App-Rahmen ========== */
+
+/* Gesamtschale: verarbeitet die festen Offsets (oben: Header+Tabs, unten: Footer) */
+.app-shell {
+  height: 100vh;
+  padding-top: calc(var(--header-h) + var(--tabs-h));
+  padding-bottom: var(--footer-h);
+}
+
+/* Fixe Top-Leiste (Header + Tabs) */
+.top-fixed {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: var(--bg-primary);
+  box-shadow: var(--shadow-sm);
 }
 
 /* Header */
-.his-header {
-    background-color: var(--primary-blue);
-    color: var(--white);
-    padding: 0 40px;
-    height: var(--header-height);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    box-shadow: var(--shadow-md);
-    position: relative;
-    z-index: 100;
+.app-header {
+  height: var(--header-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--content-pad-x);
+  background: var(--primary-blue);
+  color: var(--white);
 }
 
-.his-header-left {
-    display: flex;
-    align-items: center;
-    gap: 16px;
+.app-logo {
+  font-weight: 700;
 }
 
-.his-logo {
-    font-size: 20px;
-    font-weight: 700;
-    display: flex;
-    align-items: center;
-    gap: 12px;
+.app-header-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 14px;
+}
+.app-role {
+  color: #dbeafe;
 }
 
-.his-logo .icon {
-    width: 24px;
-    height: 24px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+/* Tabs unter dem Header */
+.app-tabs {
+  height: var(--tabs-h);
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  padding: 0 var(--content-pad-x);
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-primary);
 }
 
-.his-menu-button {
-    background: none;
-    border: none;
-    color: var(--white);
-    font-size: 14px;
-    font-weight: 500;
-    padding: 8px 16px;
-    border-radius: 6px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    transition: background-color 0.2s ease;
+.app-tab {
+  appearance: none;
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 0 14px;
+  font-size: 14px;
+  color: var(--text-secondary);
+  border-bottom: 2px solid transparent;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.app-tab:hover {
+  color: var(--primary-blue);
+  background: var(--primary-blue-bg);
+}
+.app-tab.active {
+  color: var(--primary-blue);
+  border-bottom-color: var(--primary-blue);
+  background: var(--primary-blue-bg);
 }
 
-.his-menu-button .icon {
-    width: 18px;
-    height: 18px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+/* Fixer Footer */
+.app-footer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--footer-h);
+  background: var(--bg-primary);
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--content-pad-x);
+  z-index: 90;
 }
 
-.his-menu-button:hover {
-    background-color: rgba(255, 255, 255, 0.1);
+/* ========== Hauptbereich (nur hier dürfen Sidebars leben) ========== */
+
+/**
+ * app-main ist ein Grid mit 1–3 Spalten:
+ * - mit linken Sidebar: [sidebar-left] [center] [optional right]
+ * - mit rechten Sidebar: [optional left] [center] [sidebar-right]
+ * - ohne Sidebars: nur [center]
+ * Unabhängige Scroller: .sidebar-scroll und .center-scroll
+ */
+.app-main {
+  /* liegt zwischen Top und Footer (Offets via padding der Shell) */
+  height: calc(100vh - (var(--header-h) + var(--tabs-h) + var(--footer-h)));
+  display: grid;
+  grid-template-rows: 1fr; /* eine Zeile, volle Höhe */
+  gap: 16px; /* Abstand zwischen Spalten */
+  padding: var(--content-pad-y) var(--content-pad-x);
 }
 
-.his-header-right {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    font-size: 14px;
+/* Spaltenaufteilung abhängig von aktiven Sidebars */
+.app-main.with-left.no-right {
+  grid-template-columns: var(--sidebar-left-w) minmax(0, 1fr);
+}
+.app-main.no-left.with-right {
+  grid-template-columns: minmax(0, 1fr) var(--sidebar-right-w);
+}
+.app-main.with-left.with-right {
+  grid-template-columns: var(--sidebar-left-w) minmax(0, 1fr) var(
+      --sidebar-right-w
+    );
+}
+.app-main.no-left.no-right {
+  grid-template-columns: minmax(0, 1fr);
 }
 
-.his-datetime {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+/* Sidebars (leben NUR im Main) */
+.app-sidebar {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  min-height: 0; /* wichtig für Grid-Overflow */
+  display: flex;
+  flex-direction: column;
+}
+.app-sidebar-left {
+  order: 0;
+}
+.app-sidebar-right {
+  order: 2;
 }
 
-.his-datetime .icon {
-    width: 18px;
-    height: 18px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+/* Der zentrale Bereich */
+.app-center {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  min-height: 0; /* wichtig für Grid-Overflow */
+  display: flex;
+  flex-direction: column;
 }
 
-.his-user-info {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-weight: 500;
+/* Unabhängige Scroller */
+.sidebar-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px;
 }
 
-.his-user-info .icon {
-    width: 18px;
-    height: 18px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+/* WICHTIG: center-scroll ist ein Flex-Container in Spaltenrichtung */
+.center-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto; /* Standard */
+  -webkit-overflow-scrolling: touch;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
 }
 
-/* Navigation Tabs */
-.his-nav-tabs {
-    background-color: var(--bg-primary);
-    border-bottom: 1px solid var(--border-color);
-    padding: 0 40px;
-    display: flex;
-    gap: 0;
-    min-height: var(--nav-height);
+/* Center-Scroll nur deaktivieren, wenn Patientensuche aktiv ist */
+.center-scroll.no-center-scroll {
+  overflow: hidden; /* outer scroll AUS */
 }
 
-.his-nav-tab {
-    background: none;
-    border: none;
-    padding: 18px 24px;
-    font-size: 15px;
-    font-weight: 500;
-    color: var(--text-secondary);
-    cursor: pointer;
-    border-bottom: 3px solid transparent;
-    transition: all 0.2s ease;
-    position: relative;
-    min-width: 140px;
+/* Patientensuche: Top-Level-Pane auf volle Höhe strecken */
+.center-scroll.no-center-scroll > .split-left {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
-.his-nav-tab.active {
-    color: var(--primary-blue);
-    border-bottom-color: var(--primary-blue);
-    background-color: var(--primary-blue-bg);
+/* ========== Demo-Toolbar im Center-Pane ========== */
+.toolbar-stub {
+  position: sticky; /* klebt innerhalb center-scroll */
+  position: -webkit-sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
-.his-nav-tab:hover:not(.active) {
-    color: var(--text-primary);
-    background-color: var(--bg-tertiary);
+/* ========== Form/Controls (Demo) ========== */
+.input {
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 14px;
+  min-width: 240px;
+}
+.btn {
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 14px;
+}
+.btn:hover {
+  background: var(--gray-100);
+}
+.btn-primary {
+  background: var(--primary-blue);
+  color: #fff;
+  border-color: var(--primary-blue);
+}
+.btn-primary:hover {
+  background: var(--primary-blue-hover);
 }
 
-/* Content Area */
+/* ========== Demo-Content-Stile ========== */
+.demo-block {
+  background: var(--bg-secondary);
+  border: 1px dashed var(--border-color);
+  border-radius: 8px;
+  padding: 12px;
+}
+.demo-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+.demo-item {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 10px;
+}
+
+/* Split im Center-Pane (unabhängig scrollbar) */
+.split-root {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  min-height: 320px;
+  height: 100%;
+}
+.split-left,
+.split-right {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+}
+/* Der Pane-Container muss ein Flex-Column mit eigenem Scroller sein */
+.split-left,
+.single-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0; /* wichtig für korrektes Flex-Overflow */
+}
+.pane-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-color);
+}
+.pane-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+/* Verhindere verschachtelte Scrollcontainer in der Tabelle */
+.pane-scroll .table-wrap {
+  overflow: visible; /* statt auto/scroll */
+}
+
+.pane-footer {
+  border-top: 1px solid var(--border-color);
+  padding: 8px 10px;
+  background: var(--bg-secondary);
+}
+
+.row {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+}
+
+/* Sidebar-Inhalt (Demo) */
+.sidebar-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.chip {
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  border-radius: 12px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+.tool-row {
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--border-color);
+}
+.tool-row:last-child {
+  border-bottom: 0;
+}
+
+/* ========== Responsiv ========== */
+@media (max-width: 1024px) {
+  :root {
+    --sidebar-left-w: 240px;
+    --sidebar-right-w: 260px;
+  }
+}
+@media (max-width: 768px) {
+  .app-main.with-left.with-right,
+  .app-main.with-left.no-right,
+  .app-main.no-left.with-right {
+    /* untereinander stapeln: Sidebar -> Center -> Sidebar */
+    grid-template-columns: 1fr;
+    grid-auto-rows: auto;
+  }
+}
+
+/* Einspaltige Variante wie "Patients"-Liste, aber volle Breite */
+.single-root {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  min-height: 320px;
+  height: 100%;
+}
+
+.single-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+}
+
+/* (Optional, für späteren Drill-Down vorbereitet – muss noch nicht genutzt werden) */
+.row--clickable {
+  cursor: pointer;
+}
+.row--expanded {
+  border-color: var(--primary-blue);
+  background: var(--primary-blue-bg);
+}
+
+/* ===== Patientensuche: UI-Bausteine ===== */
+.subtoolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  margin: 8px 10px; /* ober-/unterhalb etwas Luft */
+  background: transparent; /* keine eigene Fläche nötig */
+}
+.subtoolbar-left {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.subtoolbar-right {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.table-wrap {
+  width: 100%;
+  overflow: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  table-layout: fixed; /* stabilisiert Spaltenbreiten/Header beim Scrollen */
+}
+
+.table thead th {
+  position: sticky;
+  top: 0; /* klebt oben im .pane-scroll */
+  z-index: 2; /* über den Zeilen */
+  background: var(--gray-50);
+  border-bottom: 1px solid var(--border-color);
+  box-shadow: 0 1px 0 var(--border-color); /* optische Trennlinie beim Ankleben */
+  text-align: left;
+  padding: 8px;
+  white-space: nowrap;
+}
+.table tbody td {
+  border-bottom: 1px solid var(--border-color);
+  padding: 8px;
+  vertical-align: top;
+}
+.table tbody tr:hover {
+  background: var(--gray-100);
+}
+
+.empty {
+  text-align: center;
+  color: var(--text-secondary);
+  padding: 24px;
+}
+
+.pagination {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 12px 0 0 0;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  border: 1px solid var(--border-color);
+  background: var(--gray-50);
+}
+.badge-active {
+  border-color: var(--success-green);
+}
+.badge-inactive {
+  border-color: var(--gray-300);
+}
+.badge-suspended {
+  border-color: var(--warning-orange);
+}
+.badge-cancelled {
+  border-color: var(--danger-red);
+}
+.badge-unknown {
+  border-color: var(--gray-300);
+}
+
+.placeholder {
+  color: var(--text-secondary);
+  padding: 16px 0;
+}
+
+.alert {
+  padding: 10px 12px;
+  border: 1px solid var(--danger-red);
+  background: #fff5f5;
+  color: var(--danger-red);
+  border-radius: 6px;
+  margin: 8px 0 12px 0;
+}
+.alert-error {
+  /* semantic alias */
+}
+
+/* Patientensuche: Zeilen weiß, Hover wie gehabt */
+.split-left[aria-label="Patientensuche"] .table tbody tr {
+  background: #fff;
+}
+.split-left[aria-label="Patientensuche"] .table tbody tr:hover {
+  background: var(--gray-100);
+}
+
+/* Patientendetails Kopf */
+.patient-header {
+  background: #f5f7fa;
+  padding: 1rem;
+  border-radius: 0.75rem;
+  box-shadow: inset 0 -1px 0 #ddd;
+  margin-bottom: 1rem;
+}
+.patient-firstname {
+  font-size: 1.2rem;
+  font-weight: 500;
+  color: #333;
+}
+.patient-lastname {
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #111;
+}
+.patient-age {
+  font-size: 0.9rem;
+  color: #666;
+  margin-top: 0.25rem;
+}
+.patient-gender {
+  font-size: 0.9rem;
+  color: #555;
+  margin-top: 0.25rem;
+}
+
+/* Sektionen & Key/Value-Layout */
+/* Sektionen */
+.detail-section {
+  margin-bottom: 1.25rem;
+  padding: 0.75rem 1rem;
+  background: #fff;
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.section-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 0.5rem;
+}
+.kv {
+  display: grid;
+  grid-template-columns: 40% 60%;
+  row-gap: 0.4rem;
+}
+.kv-key {
+  font-weight: 500;
+  color: #444;
+}
+.kv-val {
+  color: #000;
+}
+
+/* --- Patientendetails Sidebar --- */
+.patient-sidebar {
+  font-size: 0.95rem;
+  color: #222;
+}
+
+```
+
+### File: ./src/index.css
+```css
+/* ===== CONTENT AREA ===== */
 .his-content {
-    padding: 32px 40px;
-    max-width: 1920px;
-    margin: 0 auto;
-    width: 100%;
+  flex: 1;
+  padding: 24px 40px;
+  overflow-y: auto;
+  background-color: var(--bg-secondary);
+  width: 100%;
+  max-width: 1840px; /* FullHD minus padding */
+  margin: 0 auto;
 }
 
-/* Section Header */
+/* ===== SECTION HEADER ===== */
 .his-section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 32px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  padding: 20px 24px;
+  background: var(--bg-primary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow);
 }
 
 .his-section-title {
-    font-size: 24px;
-    font-weight: 600;
-    color: var(--text-primary);
-    display: flex;
-    align-items: center;
-    gap: 16px;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .his-section-count {
-    color: var(--text-secondary);
-    font-weight: 400;
+  font-size: 14px;
+  color: var(--text-muted);
+  font-weight: 400;
 }
 
 .his-section-actions {
-    display: flex;
-    align-items: center;
-    gap: 12px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
 }
 
-.his-section-meta {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 13px;
-    color: var(--text-secondary);
+/* ===== DASHBOARD ===== */
+.his-dashboard {
+  width: 100%;
 }
 
-/* Toolbar */
+.his-dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 24px;
+  margin-top: 24px;
+}
+
+.his-dashboard-card {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 24px;
+  text-align: center;
+  box-shadow: var(--shadow);
+  transition: all 0.2s ease;
+}
+
+.his-dashboard-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.his-dashboard-card h3 {
+  margin: 0 0 16px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.his-dashboard-metric {
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--primary-blue);
+  margin-bottom: 8px;
+  line-height: 1;
+}
+
+.his-dashboard-card p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+/* ===== TOOLBAR ===== */
 .his-toolbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-    gap: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding: 16px 20px;
+  background: var(--bg-primary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow);
+  flex-wrap: wrap;
+  gap: 16px;
 }
 
-.his-toolbar-left {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: nowrap;
-}
-
-.his-search-container {
-    display: flex;
-    align-items: center;
-    background-color: var(--bg-primary);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 0 16px;
-    min-width: 400px;
-    height: 44px;
+.his-toolbar-left,
+.his-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .his-search-input {
-    border: none;
-    outline: none;
-    padding: 12px 10px;
-    font-size: 15px;
-    flex: 1;
-    background: transparent;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 14px;
+  min-width: 320px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
 }
 
-.his-search-input::placeholder {
-    color: var(--text-secondary);
+.his-search-input:focus {
+  outline: none;
+  border-color: var(--primary-blue);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
-.his-search-icon {
-    color: var(--text-secondary);
-    width: 16px;
-    height: 16px;
+.his-items-per-page {
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 14px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-width: 120px;
 }
 
-/* Action Buttons */
-.his-btn {
-    padding: 10px 20px;
-    border-radius: 8px;
-    font-size: 15px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    border: 1px solid transparent;
-    height: 44px;
+.his-status-indicator {
+  font-size: 12px;
+  color: var(--success-green);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
-.his-btn-primary {
-    background-color: var(--primary-blue);
-    color: var(--white);
-    border-color: var(--primary-blue);
-}
-
-.his-btn-primary:hover {
-    background-color: var(--primary-blue-hover);
-    border-color: var(--primary-blue-hover);
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-md);
-}
-
-.his-btn-secondary {
-    background-color: var(--bg-primary);
-    color: var(--text-secondary);
-    border-color: var(--border-color);
-}
-
-.his-btn-secondary:hover {
-    background-color: var(--bg-tertiary);
-    color: var(--text-primary);
-    border-color: var(--gray-300);
-    transform: translateY(-1px);
-    box-shadow: var(--shadow);
-}
-
-/* Table Styles */
+/* ===== PATIENT TABLE ===== */
 .his-list-container {
-    background-color: var(--bg-primary);
-    border-radius: 12px;
-    box-shadow: var(--shadow);
-    overflow: hidden;
-    border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  width: 100%;
+  position: relative !important; /* Für das Overlay */
+  min-height: 400px; /* Mindesthöhe für Overlay */
+}
+
+.his-loading-overlay {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+  backdrop-filter: blur(3px) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 999 !important;
+  border-radius: 8px;
 }
 
 .his-list {
-    width: 100%;
-    border-collapse: collapse;
-    table-layout: fixed;
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
 }
 
-.his-list th {
-    background-color: var(--bg-tertiary);
-    padding: 16px 20px;
-    text-align: left;
-    font-size: 13px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--text-secondary);
-    border-bottom: 1px solid var(--border-color);
-    white-space: nowrap;
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    position: relative;
-    user-select: none;
-}
-
-.his-list td {
-    padding: 18px 20px;
-    border-bottom: 1px solid var(--border-color);
-    font-size: 15px;
-    vertical-align: middle;
-    transition: all 0.2s ease;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+.his-list thead th {
+  background: var(--bg-secondary);
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border-color);
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 .his-list-row {
-    transition: all 0.2s ease;
-    cursor: pointer;
+  border-bottom: 1px solid var(--border-color);
+  transition: all 0.2s ease;
+  cursor: pointer;
 }
 
 .his-list-row:hover {
-    background-color: var(--primary-blue-bg);
+  background-color: var(--bg-secondary);
 }
 
 .his-list-row.expanded {
-    background-color: var(--primary-blue-bg);
-    border-bottom: none;
+  background-color: var(--primary-blue-bg);
 }
 
-/* Icon Column */
+.his-list-row td {
+  padding: 12px 16px;
+  font-size: 14px;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .his-icon-column {
-    width: 60px;
-    text-align: center;
-    padding: 18px 10px !important;
+  width: 36px;
+  text-align: center;
+  padding: 8px 6px !important;
 }
 
 .his-expand-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 20px;
-    height: 20px;
-    border-radius: 4px;
-    background-color: var(--primary-blue-light);
-    color: var(--primary-blue);
-    font-size: 12px;
-    font-weight: bold;
-    transition: all 0.2s ease;
-    cursor: pointer;
+  width: 0;
+  height: 0;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+  margin: 0 auto;
+  display: block;
 }
 
-.his-expand-icon:hover {
-    background-color: var(--primary-blue);
-    color: var(--white);
+.his-expand-icon.collapsed {
+  border-top: 8px solid transparent;
+  border-bottom: 8px solid transparent;
+  border-left: 12px solid var(--text-muted);
 }
 
 .his-expand-icon.expanded {
-    background-color: var(--primary-blue);
-    color: var(--white);
-    transform: rotate(90deg);
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 12px solid var(--text-muted);
 }
 
-/* Child Row Styles */
-.his-child-row {
-    background-color: var(--primary-blue-bg);
-    border-bottom: 1px solid var(--border-color);
-    display: none;
-}
-
-.his-child-row.show {
-    display: table-row;
-}
-
-.his-child-row td {
-    padding: 12px 20px 12px 50px;
-    font-size: 14px;
-    color: var(--text-secondary);
-    border-left: 3px solid var(--primary-blue);
-}
-
-/* Status Badges */
-.his-status {
-    display: inline-flex;
-    align-items: center;
-    padding: 4px 12px;
-    border-radius: 20px;
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.his-status.active {
-    background-color: var(--green-100);
-    color: var(--green-700);
-}
-
-.his-status.in_progress {
-    background-color: var(--yellow-100);
-    color: var(--yellow-500);
-}
-
-.his-status.completed {
-    background-color: var(--green-100);
-    color: var(--green-600);
-}
-
-.his-status.cancelled {
-    background-color: var(--red-100);
-    color: var(--red-600);
-}
-
-/* Priority Indicators */
-.his-priority {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    display: inline-block;
-    margin-right: 8px;
-}
-
-.his-priority.high {
-    background-color: var(--red-500);
-}
-
-.his-priority.medium {
-    background-color: var(--yellow-500);
-}
-
-.his-priority.low {
-    background-color: var(--green-500);
-}
-
-/* Icons */
-.icon::before {
-    font-style: normal;
-    font-variant: normal;
-    text-rendering: auto;
-    -webkit-font-smoothing: antialiased;
-}
-
-.icon-hospital::before {
-    content: "🏥";
-}
-
-.icon-calendar::before {
-    content: "📅";
-}
-
-.icon-user::before {
-    content: "👤";
-}
-
-.icon-search::before {
-    content: "🔍";
-}
-
-.icon-plus::before {
-    content: "+";
-    font-weight: bold;
-    color: var(--white);
-}
-
-.icon-settings::before {
-    content: "⚙";
-    font-weight: bold;
-    color: var(--text-secondary);
-}
-
-.icon-export::before {
-    content: "📤";
-    font-weight: bold;
-    color: var(--text-secondary);
-}
-
-.icon-filter::before {
-    content: "🔽";
-    font-weight: bold;
-    color: var(--text-secondary);
-}
-
-.icon-react::before {
-    content: "⚛";
-    font-weight: bold;
-    color: var(--text-secondary);
-}
-
-.icon-refresh::before {
-    content: "↻";
-    font-weight: bold;
-    color: var(--text-secondary);
-}
-
-.icon-chevron::before {
-    content: "▶";
-    font-size: 10px;
-}
-
-.icon-chevron-left::before {
-    content: "‹";
-    font-size: 16px;
-    font-weight: bold;
-}
-
-.icon-chevron-right::before {
-    content: "›";
-    font-size: 16px;
-    font-weight: bold;
-}
-
-/* Paginator Styles */
-.his-paginator-container {
-    margin-top: 32px;
-    padding-top: 24px;
-    border-top: 1px solid var(--border-color);
-}
-
-.his-paginator {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 24px;
-    flex-wrap: wrap;
-}
-
-.his-paginator-info {
-    color: var(--text-secondary);
-    font-size: 14px;
-}
-
-.his-items-info strong {
-    color: var(--text-primary);
-    font-weight: 600;
-}
-
-.his-paginator-controls {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-}
-
-.his-paginator-btn {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 16px;
-    border: 1px solid var(--border-color);
-    background-color: var(--bg-primary);
-    color: var(--text-primary);
-    border-radius: 6px;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    height: 36px;
-}
-
-.his-paginator-btn:hover:not(:disabled) {
-    background-color: var(--bg-tertiary);
-    border-color: var(--primary-blue);
-}
-
-.his-paginator-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-.his-paginator-pages {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.his-paginator-page {
-    width: 36px;
-    height: 36px;
-    border: 1px solid var(--border-color);
-    background-color: var(--bg-primary);
-    color: var(--text-primary);
-    border-radius: 6px;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.his-paginator-page:hover:not(.active) {
-    background-color: var(--bg-tertiary);
-    border-color: var(--primary-blue);
-}
-
-.his-paginator-page.active {
-    background-color: var(--primary-blue);
-    border-color: var(--primary-blue);
-    color: var(--white);
-}
-
-.his-paginator-ellipsis {
-    color: var(--text-secondary);
-    padding: 0 8px;
-    font-size: 14px;
-}
-
-.his-paginator-settings {
-    display: flex;
-    align-items: center;
-}
-
-.his-paginator-label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 14px;
-    color: var(--text-secondary);
-    font-weight: 500;
-}
-
-.his-paginator-select {
-    padding: 6px 12px;
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    background-color: var(--bg-primary);
-    color: var(--text-primary);
-    font-size: 14px;
-    cursor: pointer;
-    min-width: 70px;
-}
-
-.his-paginator-select:focus {
-    outline: none;
-    border-color: var(--primary-blue);
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-}
-
-/* Configuration Panel */
-.his-config-panel {
-    position: fixed;
-    right: -400px;
-    top: 0;
-    width: 400px;
-    height: 100vh;
-    background-color: var(--bg-primary);
-    border-left: 1px solid var(--border-color);
-    box-shadow: var(--shadow-md);
-    transition: right 0.3s ease;
-    z-index: 200;
-    overflow-y: auto;
-}
-
-.his-config-panel.open {
-    right: 0;
-}
-
-.his-config-header {
-    padding: 20px;
-    border-bottom: 1px solid var(--border-color);
-    background-color: var(--bg-tertiary);
-}
-
-.his-config-content {
-    padding: 20px;
-}
-
-/* Loading and Error States */
-.his-loading {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1rem;
-    padding: 3rem;
-    color: var(--text-secondary);
-}
-
-.loading-spinner {
-    width: 40px;
-    height: 40px;
-    border: 4px solid var(--gray-200);
-    border-top: 4px solid var(--primary-blue);
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-}
-
-.his-error-message {
-    background: #fff5f5;
-    border: 1px solid #fed7d7;
-    color: #c53030;
-    padding: 1rem 1.25rem;
-    border-radius: 0.5rem;
-    margin-bottom: 1rem;
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    box-shadow: 0 2px 8px rgba(197, 48, 48, 0.1);
-}
-
-.his-empty-state {
-    text-align: center;
-    padding: 3rem 2rem;
-    color: var(--text-secondary);
-}
-
-.empty-icon {
-    font-size: 4rem;
-    display: block;
-    margin-bottom: 1rem;
-    opacity: 0.7;
-}
-
-/* Responsive Design */
-@media (max-width: 1920px) {
-    .his-content {
-        padding: 24px 32px;
-    }
-}
-
-@media (max-width: 1600px) {
-    .his-content {
-        padding: 20px 24px;
-    }
-    
-    .his-section-title {
-        font-size: 20px;
-    }
-}
-
-@media (max-width: 1200px) {
-    .his-content {
-        padding: 16px;
-    }
-    
-    .his-list-container {
-        overflow-x: auto;
-    }
-    
-    .his-list {
-        min-width: 1000px;
-    }
-
-    .his-config-panel {
-        width: 100%;
-        right: -100%;
-    }
-}
-
-@media (max-width: 768px) {
-    .his-header {
-        padding: 12px 16px;
-    }
-    
-    .his-nav-tabs {
-        padding: 0 16px;
-        overflow-x: auto;
-    }
-    
-    .his-section-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 12px;
-    }
-    
-    .his-toolbar {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 12px;
-    }
-
-    .his-toolbar-left {
-        flex-direction: row;
-        align-items: center;
-        gap: 8px;
-    }
-    
-    .his-search-container {
-        min-width: auto;
-        flex: 1;
-    }
-
-    .his-paginator {
-        flex-direction: column;
-        gap: 16px;
-        align-items: stretch;
-    }
-    
-    .his-paginator-controls {
-        justify-content: center;
-    }
-    
-    .his-paginator-pages {
-        gap: 2px;
-    }
-    
-    .his-paginator-page {
-        width: 32px;
-        height: 32px;
-        font-size: 13px;
-    }
-    
-    .his-paginator-btn {
-        font-size: 13px;
-        padding: 6px 12px;
-        height: 32px;
-    }
-    
-    .his-paginator-settings {
-        justify-content: center;
-    }
-}
-
-/* Focus styles for accessibility */
-.his-search-input:focus {
-    outline: none;
-    border-color: var(--primary-blue);
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-}
-
-.his-nav-tab:focus {
-    outline: 2px solid var(--primary-blue);
-    outline-offset: 2px;
-}
-
-.his-btn:focus {
-    outline: 2px solid var(--primary-blue);
-    outline-offset: 2px;
-}
-
-/* Print styles */
-@media print {
-    .his-header,
-    .his-nav-tabs,
-    .his-toolbar,
-    .his-paginator-container,
-    .his-config-panel {
-        display: none !important;
-    }
-
-    .his-content {
-        padding: 0;
-        max-width: none;
-    }
-
-    .his-list-container {
-        box-shadow: none;
-        border: 1px solid #000;
-    }
-
-    .his-list th,
-    .his-list td {
-        border: 1px solid #000;
-        padding: 8px;
-    }
-
-    body {
-        background: white !important;
-        color: black !important;
-    }
-}0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  animation: fadeIn 0.3s ease;
-  backdrop-filter: blur(5px);
-}
-
-.drill-down-modal {
-  background: white;
-  border-radius: 1rem;
-  width: 90%;
-  max-width: 1200px;
-  max-height: 90vh;
-  overflow-y: auto;
-  animation: slideUp 0.3s ease;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-}
-
-.drill-down-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1.5rem 2rem;
-  border-bottom: 1px solid #ecf0f1;
-  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
-  border-radius: 1rem 1rem 0 0;
-}
-
-.drill-down-header h2 {
-  color: #2c3e50;
-  margin: 0;
-  font-size: 1.6rem;
-  font-weight: 600;
-}
-
-.close-btn {
-  background: #e74c3c;
-  color: white;
-  border: none;
-  padding: 0.5rem;
-  border-radius: 50%;
-  cursor: pointer;
-  font-size: 1rem;
-  width: 2.5rem;
-  height: 2.5rem;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 8px rgba(231, 76, 60, 0.3);
-}
-
-.close-btn:hover {
-  background: #c0392b;
-  transform: rotate(90deg);
-}
-
-.patient-summary {
-  padding: 1.5rem 2rem;
-  border-bottom: 1px solid #ecf0f1;
-  background: #fafbfc;
-}
-
-.patient-info-card {
-  background: white;
-  padding: 1.5rem;
-  border-radius: 0.75rem;
-  border-left: 4px solid #3498db;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-}
-
-.patient-info-card h3 {
-  color: #2c3e50;
-  margin-bottom: 1rem;
-  font-size: 1.2rem;
-  font-weight: 600;
-}
-
-.info-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 1rem;
-}
-
-.info-grid div {
-  padding: 0.5rem;
-  background: #f8f9fa;
-  border-radius: 0.5rem;
-  border: 1px solid #e9ecef;
-}
-
-.encounters-content {
-  padding: 2rem;
-}
-
-.encounters-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-  gap: 1.5rem;
-}
-
-/* ===== ENCOUNTER CARD STYLES ===== */
-.encounter-card {
-  background: white;
-  border: 1px solid #e9ecef;
-  border-radius: 0.75rem;
-  padding: 1.5rem;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.08);
-  position: relative;
-  overflow: hidden;
-}
-
-.encounter-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 4px;
-  height: 100%;
-  background: linear-gradient(135deg, #3498db, #2980b9);
-}
-
-.encounter-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 8px 25px rgba(0,0,0,0.15);
-  border-color: #3498db;
-}
-
-.encounter-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.25rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid #f1f3f4;
-}
-
-.encounter-type {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.type-icon {
-  font-size: 1.5rem;
-  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
-}
-
-.type-text {
-  font-weight: 600;
-  color: #2c3e50;
-  font-size: 1rem;
-}
-
-.encounter-status {
-  padding: 0.4rem 0.8rem;
-  color: white;
-  border-radius: 1.5rem;
-  font-size: 0.8rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-}
-
-.encounter-details {
-  margin-bottom: 1.25rem;
-}
-
-.detail-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 0.75rem;
-  padding: 0.5rem 0;
-  border-bottom: 1px solid #f8f9fa;
-}
-
-.detail-item:last-child {
-  border-bottom: none;
-  margin-bottom: 0;
-}
-
-.label {
-  font-weight: 600;
-  color: #6c757d;
-  min-width: 120px;
-  font-size: 0.9rem;
-}
-
-.value {
-  color: #2c3e50;
-  text-align: right;
-  flex: 1;
-  margin-left: 1rem;
-  font-weight: 500;
-}
-
-.billing-context {
-  background: linear-gradient(135deg, #e8f5e8, #d4edda);
-  color: #155724;
-  padding: 0.3rem 0.6rem;
-  border-radius: 0.4rem;
-  font-size: 0.8rem;
-  font-weight: 600;
-  border: 1px solid #c3e6cb;
-}
-
-.encounter-footer {
-  border-top: 1px solid #f1f3f4;
-  padding-top: 1rem;
-  font-size: 0.8rem;
-  color: #6c757d;
-}
-
-.encounter-id {
-  margin-bottom: 0.4rem;
-  font-weight: 500;
-}
-
-.created-at {
-  font-style: italic;
-}
-
-/* ===== LOADING AND ERROR STATES ===== */
-.loading-spinner {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-  padding: 3rem;
-  color: #6c757d;
-}
-
-.spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid #f1f3f4;
-  border-top: 4px solid #3498db;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-.error-message {
-  background: #fff5f5;
-  border: 1px solid #fed7d7;
-  color: #c53030;
-  padding: 1rem 1.25rem;
-  border-radius: 0.5rem;
-  margin-bottom: 1rem;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  box-shadow: 0 2px 8px rgba(197, 48, 48, 0.1);
-}
-
-.error-icon {
-  font-size: 1.2rem;
-}
-
-.empty-state, .empty-encounters {
-  text-align: center;
-  padding: 3rem 2rem;
-  color: #6c757d;
-}
-
-.empty-icon {
-  font-size: 4rem;
-  display: block;
-  margin-bottom: 1rem;
+.his-expand-icon:hover {
   opacity: 0.7;
 }
 
-.empty-encounters h3 {
-  color: #495057;
-  margin-bottom: 0.5rem;
+.his-patient-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  white-space: normal;
+}
+
+.his-patient-info strong {
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.his-patient-info span {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.his-admission-date {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.his-patient-status {
+  text-align: center;
+}
+
+.his-status-badge {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 10px;
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: inline-block;
 }
 
-.empty-encounters p {
-  color: #6c757d;
-  line-height: 1.5;
+.his-status-badge.active {
+  background: var(--success-green-light);
+  color: var(--success-green);
 }
 
-/* ===== ANIMATIONS ===== */
+.his-status-badge.in_progress {
+  background: var(--warning-orange-light);
+  color: var(--warning-orange);
+}
+
+.his-status-badge.completed {
+  background: var(--gray-200);
+  color: var(--gray-600);
+}
+
+/* ===== EXPANDED PATIENT DETAILS ===== */
+.his-expanded-content {
+  background: var(--primary-blue-bg);
+}
+
+.his-patient-details {
+  padding: 16px 20px;
+}
+
+.his-details-sections {
+  display: grid;
+  grid-template-columns: 300px 1fr 280px;
+  gap: 24px;
+}
+
+.his-detail-section h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 6px;
+}
+
+/* Contact Section */
+.his-contact-section {
+  background: var(--bg-primary);
+  border-radius: 6px;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+}
+
+.his-contact-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.his-contact-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--bg-secondary);
+  font-size: 12px;
+}
+
+.his-contact-item:last-child {
+  border-bottom: none;
+}
+
+.his-contact-label {
+  font-weight: 500;
+  color: var(--text-secondary);
+  min-width: 60px;
+}
+
+.his-contact-value {
+  color: var(--text-primary);
+  font-weight: 400;
+}
+
+/* Encounter Section */
+.his-encounter-section {
+  background: var(--bg-primary);
+  border-radius: 6px;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+}
+
+.his-encounter-list {
+  max-height: 200px;
+  overflow-y: auto;
+  border-radius: 4px;
+}
+
+.his-encounter-row {
+  border-bottom: 1px solid var(--bg-secondary);
+  padding: 8px 0;
+  font-size: 12px;
+}
+
+.his-encounter-row:last-child {
+  border-bottom: none;
+}
+
+.his-encounter-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.his-encounter-date {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.his-encounter-date strong {
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.his-encounter-time {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.his-encounter-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.his-encounter-type {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.his-encounter-status-badge {
+  padding: 2px 6px;
+  border-radius: 8px;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.his-encounter-status-badge.in_progress {
+  background: var(--warning-orange-light);
+  color: var(--warning-orange);
+}
+
+.his-encounter-status-badge.completed {
+  background: var(--success-green-light);
+  color: var(--success-green);
+}
+
+.his-encounter-status-badge.cancelled {
+  background: var(--danger-red-light);
+  color: var(--danger-red);
+}
+
+.his-encounter-status-badge.unknown {
+  background: var(--gray-200);
+  color: var(--gray-600);
+}
+
+.his-encounter-details {
+  padding-left: 8px;
+  border-left: 2px solid var(--bg-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.his-encounter-detail {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.his-detail-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-weight: 500;
+  min-width: 60px;
+}
+
+.his-detail-value {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+/* Audit Fields */
+.his-encounter-audit {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--bg-tertiary);
+}
+
+/* SOAP Documentation */
+.his-soap-documentation {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--bg-tertiary);
+}
+
+.his-soap-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.his-soap-count {
+  font-size: 9px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.his-soap-entries {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.his-soap-entry {
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 10px;
+}
+
+.his-soap-section {
+  display: block;
+  font-size: 9px;
+  color: var(--primary-blue);
+  font-weight: 600;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.his-soap-content {
+  display: block;
+  font-size: 10px;
+  color: var(--text-primary);
+  line-height: 1.3;
+  margin-bottom: 4px;
+}
+
+.his-soap-author,
+.his-soap-created {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  font-size: 8px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.his-soap-author .his-detail-label,
+.his-soap-created .his-detail-label {
+  min-width: 40px;
+  font-size: 8px;
+}
+
+.his-soap-author .his-detail-value,
+.his-soap-created .his-detail-value {
+  font-size: 8px;
+}
+
+.his-no-encounters {
+  text-align: center;
+  padding: 20px;
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: 12px;
+}
+
+/* Actions Section */
+.his-actions-section {
+  background: var(--bg-primary);
+  border-radius: 6px;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+}
+
+.his-patient-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.his-patient-actions .his-btn {
+  justify-content: flex-start;
+  font-size: 11px;
+  padding: 6px 8px;
+}
+
+/* ===== PAGINATION ===== */
+.his-paginator {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 20px;
+  padding: 16px 20px;
+  background: var(--bg-primary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow);
+}
+
+.his-pagination-info {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.his-pagination-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.his-items-per-page {
+  padding: 6px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 14px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-width: 110px;
+  margin-right: 12px;
+}
+
+.his-pagination-btn {
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  min-width: 40px;
+  text-align: center;
+}
+
+.his-pagination-btn:hover:not(:disabled) {
+  background: var(--primary-blue-bg);
+  border-color: var(--primary-blue);
+  color: var(--primary-blue);
+}
+
+.his-pagination-btn.active {
+  background: var(--primary-blue);
+  color: var(--white);
+  border-color: var(--primary-blue);
+}
+
+.his-pagination-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.his-pagination-btn.ellipsis {
+  border: none;
+  background: none;
+  cursor: default;
+}
+
+/* ===== BUTTONS ===== */
+.his-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.his-btn-primary {
+  background: var(--primary-blue);
+  color: var(--white);
+  border-color: var(--primary-blue);
+}
+
+.his-btn-primary:hover {
+  background: var(--primary-blue-hover);
+  border-color: var(--primary-blue-hover);
+}
+
+.his-btn-secondary {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border-color: var(--border-color);
+}
+
+.his-btn-secondary:hover {
+  background: var(--bg-secondary);
+  border-color: var(--gray-300);
+}
+
+.his-btn-sm {
+  padding: 6px 12px;
+  font-size: 12px;
+  min-height: 28px;
+}
+
+/* ===== CONFIGURATION PANEL ===== */
+.his-config-panel {
+  position: fixed;
+  top: 0;
+  right: -400px;
+  width: 400px;
+  height: 100vh;
+  background: var(--bg-primary);
+  border-left: 1px solid var(--border-color);
+  box-shadow: var(--shadow-md);
+  transition: right 0.3s ease;
+  z-index: 1000;
+  overflow-y: auto;
+}
+
+.his-config-panel.open {
+  right: 0;
+}
+
+.his-config-header {
+  padding: 20px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.his-config-header h3 {
+  margin: 0;
+  font-size: 16px;
+  color: var(--text-primary);
+}
+
+.his-config-close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 4px;
+}
+
+.his-config-close:hover {
+  color: var(--text-primary);
+}
+
+.his-config-content {
+  padding: 20px;
+}
+
+.his-config-section {
+  margin-bottom: 24px;
+}
+
+.his-config-section h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.his-config-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.his-config-option input[type="checkbox"] {
+  margin: 0;
+}
+
+/* ===== LOADING & ERROR STATES ===== */
+.his-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px;
+  color: var(--text-secondary);
+}
+
+.loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--border-color);
+  border-top: 3px solid var(--primary-blue);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+/* ===== MODAL LOADING DIALOG ===== */
+.his-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.his-modal-dialog {
+  background: var(--bg-primary);
+  border-radius: 12px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1),
+    0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  max-width: 400px;
+  width: 90%;
+  animation: slideIn 0.3s ease-out;
+}
+
+.his-modal-content {
+  padding: 0;
+}
+
+.his-modal-header {
+  padding: 20px 24px 16px 24px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.his-modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-align: center;
+}
+
+.his-modal-body {
+  padding: 24px;
+}
+
+.his-modal-body .his-loading {
+  padding: 20px 0;
+  text-align: center;
+}
+
+.his-modal-body .his-loading p {
+  margin: 16px 0 20px 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.his-loading-progress {
+  width: 100%;
+  height: 4px;
+  background: var(--bg-secondary);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 16px;
+}
+
+.his-progress-bar {
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    var(--primary-blue),
+    var(--primary-blue-hover)
+  );
+  border-radius: 2px;
+  animation: progress 2s ease-in-out infinite;
+  width: 0%;
+}
+
 @keyframes fadeIn {
-  from { 
-    opacity: 0; 
+  from {
+    opacity: 0;
   }
-  to { 
-    opacity: 1; 
+  to {
+    opacity: 1;
   }
 }
 
-@keyframes slideUp {
-  from { 
+@keyframes slideIn {
+  from {
     opacity: 0;
-    transform: translateY(30px) scale(0.95);
+    transform: translateY(-20px) scale(0.95);
   }
-  to { 
+  to {
     opacity: 1;
     transform: translateY(0) scale(1);
   }
 }
 
-@keyframes spin {
-  0% { 
-    transform: rotate(0deg); 
+@keyframes progress {
+  0% {
+    width: 0%;
+    transform: translateX(-100%);
   }
-  100% { 
-    transform: rotate(360deg); 
+  50% {
+    width: 70%;
+    transform: translateX(0%);
+  }
+  100% {
+    width: 100%;
+    transform: translateX(100%);
   }
 }
 
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.7;
-  }
+.his-error-message {
+  background: var(--danger-red-light);
+  border: 1px solid var(--danger-red);
+  color: var(--danger-red);
+  padding: 12px 16px;
+  border-radius: 6px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.his-no-data {
+  text-align: center;
+  padding: 60px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.his-placeholder {
+  text-align: center;
+  padding: 60px;
+  color: var(--text-secondary);
+}
+
+.his-placeholder h2 {
+  margin: 0 0 16px 0;
+  font-size: 24px;
+  color: var(--text-primary);
+}
+
+.his-placeholder p {
+  margin: 0;
+  font-size: 16px;
 }
 
 /* ===== RESPONSIVE DESIGN ===== */
+@media (max-width: 1600px) {
+  .his-container {
+    max-width: 100%;
+  }
+
+  .his-content {
+    max-width: 100%;
+    padding: 20px 32px;
+  }
+
+  .his-dashboard-grid {
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  }
+
+  .his-details-sections {
+    grid-template-columns: 280px 1fr 250px;
+  }
+}
+
 @media (max-width: 1200px) {
-  .encounters-grid {
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  .his-content {
+    padding: 16px 24px;
+  }
+
+  .his-search-input {
+    min-width: 280px;
+  }
+
+  .his-dashboard-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .his-details-sections {
+    grid-template-columns: 1fr;
+    gap: 16px;
   }
 }
 
 @media (max-width: 768px) {
-  .header-content {
+  .his-header {
+    padding: 12px 20px;
     flex-direction: column;
-    gap: 1rem;
-    text-align: center;
+    gap: 8px;
+    min-height: auto;
   }
 
-  .stats-section {
-    order: 2;
+  .his-header-info {
+    align-items: center;
   }
 
-  .user-section {
-    order: 3;
+  .his-nav-tabs {
+    padding: 0 20px;
+    overflow-x: auto;
+  }
+
+  .his-content {
+    padding: 16px;
+  }
+
+  .his-footer {
+    padding: 12px 20px;
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+  }
+
+  .his-footer-info {
+    justify-content: center;
+    gap: 16px;
+  }
+
+  .his-footer-actions {
     justify-content: center;
   }
 
-  .main-content {
-    padding: 1rem;
+  .his-footer-controls {
+    justify-content: center;
   }
 
-  .patient-list {
-    padding: 1rem;
-  }
-
-  .patient-list h2 {
-    font-size: 1.5rem;
-  }
-
-  .drill-down-modal {
-    width: 95%;
-    margin: 1rem;
-    max-height: 85vh;
-  }
-
-  .drill-down-header {
-    padding: 1rem;
+  .his-section-header {
     flex-direction: column;
-    gap: 1rem;
-    text-align: center;
+    gap: 16px;
+    align-items: stretch;
   }
 
-  .drill-down-header h2 {
-    font-size: 1.3rem;
-  }
-
-  .patient-summary {
-    padding: 1rem;
-  }
-
-  .encounters-content {
-    padding: 1rem;
-  }
-
-  .encounters-grid {
-    grid-template-columns: 1fr;
-    gap: 1rem;
-  }
-
-  .info-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .patient-table {
-    font-size: 0.9rem;
-  }
-
-  .patient-table th,
-  .patient-table td {
-    padding: 0.75rem 0.5rem;
-  }
-
-  .encounter-card {
-    padding: 1rem;
-  }
-
-  .detail-item {
+  .his-toolbar {
     flex-direction: column;
-    align-items: flex-start;
-    gap: 0.25rem;
+    align-items: stretch;
   }
 
-  .value {
-    text-align: left;
-    margin-left: 0;
+  .his-toolbar-left,
+  .his-toolbar-right {
+    justify-content: center;
+  }
+
+  .his-search-input {
+    min-width: auto;
+    width: 100%;
+  }
+
+  .his-list {
+    font-size: 12px;
+  }
+
+  .his-details-sections {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .his-patient-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .his-paginator {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .his-dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .his-config-panel {
+    width: 100%;
+    right: -100%;
+  }
+
+  .his-encounter-list {
+    max-height: 150px;
   }
 }
 
 @media (max-width: 480px) {
-  .logo-section h1 {
-    font-size: 1.5rem;
+  .his-nav-tab {
+    padding: 8px 12px;
+    font-size: 12px;
   }
 
-  .patient-table th,
-  .patient-table td {
-    padding: 0.5rem 0.25rem;
-    font-size: 0.8rem;
+  .his-list-row td {
+    padding: 8px 12px;
   }
 
-  .drill-down-modal {
-    width: 98%;
-    margin: 0.5rem;
-    border-radius: 0.5rem;
+  .his-pagination-controls {
+    flex-wrap: wrap;
+    justify-content: center;
   }
 
-  .encounter-header {
+  .his-patient-details {
+    padding: 12px;
+  }
+
+  .his-encounter-main {
     flex-direction: column;
     align-items: flex-start;
-    gap: 0.5rem;
+    gap: 4px;
   }
 
-  .encounter-status {
-    align-self: flex-end;
+  .his-patient-actions .his-btn {
+    font-size: 10px;
+    padding: 4px 6px;
   }
-}
+} /* HIS PROFILE-SYSTEM CSS - Vollständige Integration */
+/* Erweitert die bestehende App.css um Profile-spezifische Styles */
 
-/* ===== ACCESSIBILITY ===== */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-}
-
-/* Focus styles for keyboard navigation */
-.patient-row:focus-within,
-.drill-down-btn:focus,
-.refresh-btn:focus,
-.close-btn:focus {
-  outline: 2px solid #3498db;
-  outline-offset: 2px;
-}
-
-/* High contrast mode support */
-@media (prefers-contrast: high) {
-  .patient-row:hover {
-    background: #000;
-    color: #fff;
-  }
-  
-  .encounter-card {
-    border: 2px solid #000;
-  }
-}
-
-/* ===== PRINT STYLES ===== */
-@media print {
-  .app-header,
-  .drill-down-btn,
-  .refresh-btn,
-  .close-btn {
-    display: none !important;
-  }
-
-  .drill-down-overlay {
-    position: static;
-    background: none;
-  }
-
-  .drill-down-modal {
-    box-shadow: none;
-    max-height: none;
-    width: 100%;
-  }
-
-  .patient-table,
-  .encounter-card {
-    break-inside: avoid;
-  }
-
-  body {
-    background: white !important;
-  }
-}
-
-/* ===== DARK MODE SUPPORT (for future implementation) ===== */
-@media (prefers-color-scheme: dark) {
-  /* This section can be uncommented for dark mode support */
-  /*
-  body {
-    background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
-    color: #ecf0f1;
-  }
-
-  .patient-list,
-  .drill-down-modal,
-  .patient-info-card {
-    background: #34495e;
-    color: #ecf0f1;
-  }
-
-  .patient-table th {
-    background: linear-gradient(135deg, #3498db, #2980b9);
-  }
-
-  .patient-row {
-    background: #34495e;
-    border-bottom-color: #2c3e50;
-  }
-
-  .patient-row:hover {
-    background: #2c3e50;
-  }
-  */
-}
-```
-
-### File: ./src/index.css
-```css
+/* Root Variables */
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+  --primary-blue: #2563eb;
+  --primary-blue-hover: #1d4ed8;
+  --primary-blue-light: #dbeafe;
+  --primary-blue-bg: #eff6ff;
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+  --success-green: #059669;
+  --success-green-light: #d1fae5;
+  --warning-orange: #d97706;
+  --warning-orange-light: #fed7aa;
+  --danger-red: #dc2626;
+  --danger-red-light: #fecaca;
 
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  --white: #ffffff;
+  --gray-50: #f9fafb;
+  --gray-100: #f3f4f6;
+  --gray-200: #e5e7eb;
+  --gray-300: #d1d5db;
+  --gray-400: #9ca3af;
+  --gray-500: #6b7280;
+  --gray-600: #4b5563;
+  --gray-700: #374151;
+  --gray-800: #1f2937;
+  --gray-900: #111827;
+
+  --text-primary: var(--gray-900);
+  --text-secondary: var(--gray-600);
+  --text-muted: var(--gray-500);
+  --border-color: var(--gray-200);
+  --bg-primary: var(--white);
+  --bg-secondary: var(--gray-50);
+  --bg-tertiary: var(--gray-100);
+
+  --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
+/* Base Styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
 body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* ===== PROFILE SELECTOR ===== */
+.his-profile-setup {
   min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(
+    135deg,
+    var(--primary-blue-bg) 0%,
+    var(--bg-secondary) 100%
+  );
+  padding: 20px;
 }
 
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
+.his-profile-selector {
+  background: var(--bg-primary);
+  border-radius: 12px;
+  padding: 32px;
+  box-shadow: var(--shadow-md);
+  max-width: 1000px;
+  width: 100%;
 }
 
-button {
+.his-profile-selector h3 {
+  text-align: center;
+  margin: 0 0 32px 0;
+  font-size: 24px;
+  color: var(--text-primary);
+}
+
+.his-profile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 24px;
+}
+
+.his-profile-card {
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-color);
   border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
+  padding: 24px;
+  transition: all 0.3s ease;
   cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
+.his-profile-card:hover {
+  border-color: var(--primary-blue);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.his-profile-card h4 {
+  margin: 0 0 12px 0;
+  font-size: 18px;
+  color: var(--primary-blue);
+}
+
+.his-profile-card p {
+  margin: 0 0 20px 0;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.his-profile-selector-toggle {
+  background: var(--primary-blue);
+  border: 1px solid var(--primary-blue);
+  color: var(--white);
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 14px;
+}
+
+.his-profile-selector-toggle:hover {
+  background: var(--primary-blue-hover);
+  transform: scale(1.02);
+}
+
+/* ===== CONTEXT FORM ===== */
+.his-profile-context-form {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 20px;
+  margin-top: 16px;
+}
+
+.his-profile-context-form h5 {
+  margin: 0 0 16px 0;
+  font-size: 16px;
+  color: var(--text-primary);
+}
+
+.his-context-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.his-context-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.his-context-fields select,
+.his-context-fields input {
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 14px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.his-context-fields select:focus,
+.his-context-fields input:focus {
+  outline: none;
+  border-color: var(--primary-blue);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.his-context-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+/* ===== MAIN CONTAINER ===== */
+.his-container {
+  min-height: 100vh;
+  background-color: var(--bg-secondary);
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 1920px; /* FullHD Standard */
+  margin: 0 auto;
+}
+
+/* ===== HEADER & NAVIGATION CONTAINER ===== */
+.his-header-navigation {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--bg-primary);
+  box-shadow: var(--shadow-md);
+}
+
+/* ===== HEADER ===== */
+.his-header {
+  background-color: var(--primary-blue);
+  color: var(--white);
+  padding: 16px 40px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 64px;
+  width: 100%;
+}
+
+.his-logo {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--white);
+}
+
+.his-header-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.his-datetime {
+  font-size: 12px;
+  color: var(--primary-blue-light);
+  margin-bottom: 2px;
+}
+
+.his-user-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--white);
+}
+
+.his-user-name {
+  font-weight: 600;
+}
+
+.his-user-role {
+  color: var(--primary-blue-light);
+  font-size: 12px;
+}
+
+/* ===== NAVIGATION ===== */
+.his-nav-tabs {
+  background-color: var(--bg-primary);
+  border-bottom: 1px solid var(--border-color);
+  padding: 0 40px;
+  display: flex;
+  min-height: 50px;
+}
+
+.his-nav-tab {
+  display: flex;
+  align-items: center;
+  padding: 12px 20px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--text-secondary);
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s ease;
+  gap: 8px;
+}
+
+.his-nav-tab:hover {
+  color: var(--primary-blue);
+  background-color: var(--primary-blue-bg);
+}
+
+.his-nav-tab.active {
+  color: var(--primary-blue);
+  border-bottom-color: var(--primary-blue);
+  background-color: var(--primary-blue-bg);
+}
+
+/* ===== FOOTER ===== */
+.his-footer {
+  background-color: var(--bg-primary);
+  border-top: 1px solid var(--border-color);
+  padding: 16px 40px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.1);
+  position: sticky;
+  bottom: 0;
+  width: 100%;
+  z-index: 50;
+}
+
+.his-footer-info {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.his-footer-count {
+  font-size: 14px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.his-footer-status {
+  font-size: 12px;
+  color: var(--success-green);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.his-footer-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.his-footer-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+/* ===== MAIN LAYOUT ===== */
+.his-main-layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.his-content {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+  background-color: var(--bg-secondary);
+}
+
+/* ===== SIDEBARS ===== */
+.his-sidebar {
+  width: 280px;
+  background-color: var(--bg-primary);
+  border-right: 1px solid var(--border-color);
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.his-sidebar-left {
+  border-right: 1px solid var(--border-color);
+}
+
+.his-sidebar-right {
+  border-left: 1px solid var(--border-color);
+}
+
+/* ===== WARD QUICK ACTIONS ===== */
+.his-quick-actions {
+  margin-bottom: 24px;
+}
+
+.his-quick-actions h3 {
+  margin: 0 0 16px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.his-action-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.his-quick-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-primary);
+  text-decoration: none;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.his-quick-btn:hover {
+  background: var(--primary-blue-bg);
+  border-color: var(--primary-blue);
+  color: var(--primary-blue);
+  transform: translateX(2px);
+}
+
+.his-action-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+/* ===== WARD STATUS ===== */
+.his-ward-status {
+  margin-bottom: 24px;
+}
+
+.his-ward-status h3 {
+  margin: 0 0 16px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.his-ward-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.his-metric-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 12px;
+  text-align: center;
+}
+
+.his-metric-card h4 {
+  margin: 0 0 8px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.his-metric-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--primary-blue);
+  line-height: 1;
+}
+
+.his-metric-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* ===== PERSONAL TASKS ===== */
+.his-personal-tasks {
+  margin-bottom: 24px;
+}
+
+.his-personal-tasks h3 {
+  margin: 0 0 16px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.his-task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.his-task-item {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 12px;
+  transition: all 0.2s ease;
+}
+
+.his-task-item.high {
+  border-left: 4px solid var(--danger-red);
+}
+
+.his-task-item.medium {
+  border-left: 4px solid var(--warning-orange);
+}
+
+.his-task-item.low {
+  border-left: 4px solid var(--success-green);
+}
+
+.his-task-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.his-task-header strong {
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.his-task-priority {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  font-weight: 600;
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+}
+
+.his-task-details p {
+  margin: 0 0 8px 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.his-task-due {
+  font-size: 11px;
+  color: var(--warning-orange);
+  font-weight: 500;
+}
+
+/* ===== PATIENT LIST ===== */
+.his-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding: 20px;
+  background: var(--bg-primary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.his-list-header h2 {
+  margin: 0;
+  font-size: 20px;
+  color: var(--text-primary);
+}
+
+.his-search-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.his-search-input {
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 14px;
+  min-width: 280px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.his-search-input:focus {
+  outline: none;
+  border-color: var(--primary-blue);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+/* ===== PATIENT TABLE ===== */
+.his-list-container {
+  background: var(--bg-primary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+}
+
+.his-patient-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.his-table-header th {
+  background: var(--bg-secondary);
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.his-table-row {
+  border-bottom: 1px solid var(--border-color);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.his-table-row:hover {
+  background-color: var(--bg-secondary);
+}
+
+.his-table-row.expanded {
+  background-color: var(--primary-blue-bg);
+}
+
+.his-table-row td {
+  padding: 12px 16px;
+  font-size: 14px;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.his-icon-column {
+  width: 40px;
+  text-align: center;
+}
+
+.his-expand-icon {
+  color: var(--text-muted);
+  font-size: 12px;
+  transition: transform 0.2s ease;
+}
+
+.his-patient-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.his-patient-info strong {
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.his-patient-info span {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.his-patient-info code {
+  font-size: 10px;
+  background: var(--bg-tertiary);
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-family: "SF Mono", monospace;
+}
+
+.his-status-badge {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.his-status-badge.active {
+  background: var(--success-green-light);
+  color: var(--success-green);
+}
+
+.his-status-badge.in_progress {
+  background: var(--warning-orange-light);
+  color: var(--warning-orange);
+}
+
+.his-status-badge.completed {
+  background: var(--gray-200);
+  color: var(--gray-600);
+}
+
+/* ===== EXPANDED PATIENT DETAILS ===== */
+.his-expanded-content {
+  background: var(--primary-blue-bg);
+}
+
+.his-patient-details {
+  padding: 20px;
+}
+
+.his-details-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+}
+
+.his-detail-section h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.his-detail-section p {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.his-patient-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* ===== BUTTONS ===== */
+.his-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.his-btn-primary {
+  background: var(--primary-blue);
+  color: var(--white);
+  border-color: var(--primary-blue);
+}
+
+.his-btn-primary:hover {
+  background: var(--primary-blue-hover);
+  border-color: var(--primary-blue-hover);
+}
+
+.his-btn-secondary {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border-color: var(--border-color);
+}
+
+.his-btn-secondary:hover {
+  background: var(--bg-secondary);
+  border-color: var(--gray-300);
+}
+
+.his-btn-sm {
+  padding: 6px 12px;
+  font-size: 12px;
+  min-height: 28px;
+}
+
+/* ===== LOADING & ERROR STATES ===== */
+.his-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  color: var(--text-secondary);
+}
+
+.loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--border-color);
+  border-top: 3px solid var(--primary-blue);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
   }
-  a:hover {
-    color: #747bff;
+  100% {
+    transform: rotate(360deg);
   }
-  button {
-    background-color: #f9f9f9;
+}
+
+.his-error-message {
+  background: var(--danger-red-light);
+  border: 1px solid var(--danger-red);
+  color: var(--danger-red);
+  padding: 12px 16px;
+  border-radius: 6px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.his-no-data {
+  text-align: center;
+  padding: 40px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* ===== RESPONSIVE DESIGN ===== */
+@media (max-width: 1024px) {
+  .his-sidebar {
+    width: 240px;
+  }
+
+  .his-ward-metrics-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .his-header {
+    padding: 12px 20px;
+  }
+
+  .his-nav-tabs {
+    padding: 0 20px;
+    overflow-x: auto;
+  }
+
+  .his-main-layout {
+    flex-direction: column;
+  }
+
+  .his-sidebar {
+    width: 100%;
+    border: none;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .his-content {
+    padding: 16px;
+  }
+
+  .his-list-header {
+    flex-direction: column;
+    gap: 16px;
+    align-items: stretch;
+  }
+
+  .his-search-input {
+    min-width: auto;
+    width: 100%;
+  }
+
+  .his-patient-table {
+    font-size: 12px;
+  }
+
+  .his-details-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .his-patient-actions {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 480px) {
+  .his-profile-selector {
+    padding: 20px;
+  }
+
+  .his-profile-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .his-context-actions {
+    flex-direction: column;
+  }
+
+  .his-ward-metrics-grid {
+    grid-template-columns: 1fr;
   }
 }
 

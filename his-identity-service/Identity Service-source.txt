@@ -1,0 +1,286 @@
+# HIS Identity Service - Complete Source Code Structure
+Generated: Mo 18 Aug 2025 18:50:34 CEST
+Project: Hospital Information System (HIS) - Identity Service
+=========================================================
+
+## Directory Structure
+```
+./.mvn/wrapper/maven-wrapper.properties
+./Dockerfile
+./pom.xml
+./README.md
+./src/main/java/de/his/identity/IdentityServiceApplication.java
+./src/main/resources/application.yml
+```
+
+## Tree Structure
+```
+.
+├── Dockerfile
+├── Identity Service-source.txt
+├── mvnw
+├── mvnw.cmd
+├── pom.xml
+├── README.md
+└── src
+    └── main
+        ├── java
+        │   └── de
+        │       └── his
+        │           └── identity
+        │               └── IdentityServiceApplication.java
+        └── resources
+            └── application.yml
+
+8 directories, 8 files
+```
+
+## Source Code Files
+
+### File: ./src/main/java/de/his/identity/IdentityServiceApplication.java
+```java
+package de.his.identity;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class IdentityServiceApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(IdentityServiceApplication.class, args);
+    }
+}
+
+```
+
+### File: ./src/main/resources/application.yml
+```yml
+server:
+  port: 8083
+spring:
+  application:
+    name: his-identity-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/his_db
+    username: his_user
+    password: dev_password
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        default_schema: his_auth
+  ldap:
+    urls: ldap://localhost:389/
+    base: dc=example,dc=org
+    username: cn=admin,dc=example,dc=org
+    password: admin
+  security:
+    user:
+      name: admin
+      password: dev-password
+      roles: ADMIN
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+```
+
+### File: ./.mvn/wrapper/maven-wrapper.properties
+```properties
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+wrapperVersion=3.3.2
+distributionType=only-script
+distributionUrl=https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.9.11/apache-maven-3.9.11-bin.zip
+
+```
+
+### File: ./pom.xml
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>de.his</groupId>
+    <artifactId>his-identity-service</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <packaging>jar</packaging>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.3.0</version>
+        <relativePath/>
+    </parent>
+
+    <properties>
+        <java.version>21</java.version>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-ldap</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-oauth2-authorization-server</artifactId>
+            <version>1.2.1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>2.5.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+                <configuration>
+                    <source>21</source>
+                    <target>21</target>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
+
+```
+
+### File: ./Dockerfile
+```dockerfile
+# Multi-Stage Docker Build for Identity Service
+FROM eclipse-temurin:21-jdk AS build
+
+WORKDIR /app
+
+COPY pom.xml .
+COPY .mvn .mvn
+COPY mvnw .
+RUN chmod +x ./mvnw || true
+RUN ./mvnw dependency:go-offline -B || mvn dependency:go-offline -B
+COPY src src
+RUN ./mvnw package -DskipTests -B || mvn package -DskipTests -B
+
+FROM eclipse-temurin:21-jre
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+RUN groupadd -g 1001 appgroup && useradd -r -u 1001 -g appgroup appuser
+WORKDIR /app
+COPY --from=build /app/target/*.jar app.jar
+RUN chown appuser:appgroup app.jar && mkdir -p logs && chown appuser:appgroup logs
+USER appuser
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8083/actuator/health || exit 1
+EXPOSE 8083
+ENV JAVA_OPTS="-Xmx512m -Xms256m -XX:+UseContainerSupport -XX:MaxRAMPercentage=80.0"
+ENV SPRING_PROFILES_ACTIVE=docker
+ENTRYPOINT ["sh","-c","java $JAVA_OPTS -jar app.jar"]
+LABEL maintainer="PVS Team"
+LABEL description="Identity and Authorization Service for HIS"
+LABEL version="1.0.0"
+
+```
+
+### File: ./README.md
+```markdown
+# HIS Identity Service
+
+Der Identity-/Auth-Service stellt Benutzer- und Rollenverwaltung bereit und vergibt kontextbezogene JWTs.
+
+## Hauptaufgaben
+- **Authentifizierung** über LDAP und Datenbank-Fallback.
+- **Benutzer- & Rollenverwaltung** mit hierarchischem Rollenmodell.
+- **Kontextverwaltung** (aktive Rolle, Station/Fachbereich, Organisation, Mandant, Standort).
+- **Token-Ausgabe**: Ausstellung von signierten JWTs, die Benutzer- und Kontextinformationen enthalten.
+- **Kontextwechsel** durch erneutes Anmelden bzw. expliziten Wechsel-Endpunkt.
+- **Audit-Logging** aller Login- und Berechtigungsänderungen.
+
+## Architektur
+```
+[Client] → [API Gateway] → [Identity Service]
+                          ↘ PostgreSQL (Schema: his_auth)
+                          ↘ LDAP Server
+```
+
+- **Controller-Layer**: REST-APIs für Login, Benutzer- und Rollenverwaltung, Kontextwechsel sowie CSV-Import/-Export.
+- **Service-Layer**: Business-Logik für Benutzerpflege, Rollenauflösung und Token-Erstellung.
+- **Repository-Layer**: Zugriff auf PostgreSQL-Schema `his_auth` (JPA).
+- **Security-Layer**: Spring Security mit LDAP-Bind und OAuth2 Authorization Server zur JWT-Erzeugung.
+- **Audit-Layer**: Persistiert Aktionen (Benutzer, Rolle, Kontext, Aktion, Patient?, Zeit, Notfallflag).
+
+## Ports und Konfiguration
+- Default-Port: `8083`
+- Health-Endpoint: `/actuator/health`
+- Docker-Image basiert auf `eclipse-temurin:21`.
+
+## Zukunft
+- Erweiterung um zusätzliche Kontextparameter und feinere Policies.
+- Integration einer externen Policy-Engine (z.B. OPA) für flexible Zugriffsregeln.
+
+```
+
