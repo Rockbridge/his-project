@@ -4567,7 +4567,7 @@ distributionUrl=https://repo.maven.apache.org/maven2/org/apache/maven/apache-mav
 -- Wird beim ersten Start der PostgreSQL-Container ausgeführt
 
 -- UUID Extension aktivieren
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- Development Seed Data (optional)
 -- Beispiel-Practitioner für Development
@@ -4578,10 +4578,10 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 ### File: ./src/main/resources/db/migration/V1__Create_encounters_table.sql
 ```sql
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 CREATE TABLE encounters (
-    encounter_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    encounter_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     patient_id UUID NOT NULL,
     practitioner_id UUID NOT NULL,
     encounter_type VARCHAR(50) NOT NULL,
@@ -4617,7 +4617,7 @@ CREATE TRIGGER update_encounters_updated_at
 ### File: ./src/main/resources/db/migration/V2__Create_encounter_documentation_table.sql
 ```sql
 CREATE TABLE encounter_documentation (
-    documentation_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    documentation_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     encounter_id UUID NOT NULL REFERENCES encounters(encounter_id) ON DELETE CASCADE,
     soap_section VARCHAR(50) NOT NULL,
     content_type VARCHAR(50) NOT NULL,

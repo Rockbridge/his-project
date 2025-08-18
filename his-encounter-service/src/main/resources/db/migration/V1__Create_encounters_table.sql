@@ -1,7 +1,7 @@
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 CREATE TABLE encounters (
-    encounter_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    encounter_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     patient_id UUID NOT NULL,
     practitioner_id UUID NOT NULL,
     encounter_type VARCHAR(50) NOT NULL,
