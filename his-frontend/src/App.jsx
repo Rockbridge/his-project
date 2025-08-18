@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import "./App.css";
 
 /**
@@ -6,7 +6,7 @@ import "./App.css";
  * - Fixer Header (oben)
  * - Fixe Tab-Leiste (unter dem Header)
  * - Fixer Footer (unten)
- * - Dazwischen: Hauptbereich (Main), dessen Layout je Modul variiert (mit/ohne Sidebars, Splits, eigene Scrollbereiche)
+ * - Dazwischen: Hauptbereich (Main) mit optionalen Sidebars
  */
 
 function Header() {
@@ -59,8 +59,6 @@ function Footer() {
 
 /**
  * MainLayout: generischer Hauptbereich mit optionalen Sidebars (links/rechts)
- * - Nur dieser Bereich enthält Sidebars (nicht Header/Tabs/Footer)
- * - centerPane, leftSidebar, rightSidebar können unabhängig scrollen
  */
 function MainLayout({
   leftOpen,
@@ -68,7 +66,7 @@ function MainLayout({
   leftContent,
   rightContent,
   children,
-  noCenterScroll = false, // NEU
+  noCenterScroll = false,
 }) {
   const cls = [
     "app-main",
@@ -113,7 +111,6 @@ function MainLayout({
 /** Beispiel-Module **/
 
 function ModuleDashboard() {
-  // Einspaltiges Pane – identisches Look&Feel wie "Patients" -> "Liste"
   return (
     <div className="single-root">
       <div className="single-pane" role="region" aria-label="Dashboard – Liste">
@@ -131,7 +128,6 @@ function ModuleDashboard() {
 }
 
 function ModulePatientsSplit() {
-  // Demonstriert unabhängiges Scrolling in einem Split-Layout innerhalb des Center-Panes
   return (
     <div className="split-root">
       <div className="split-left">
@@ -164,7 +160,7 @@ function ModulePatientsSplit() {
 
 /** Gateway-Settings (Basic Auth analog App.jsx.old) */
 const BASE_URL = "http://localhost:8080/api/v1";
-const AUTH_HEADER = "Basic " + btoa("admin:dev-password"); // TODO: später aus Config/ENV laden
+const AUTH_HEADER = "Basic " + btoa("admin:dev-password"); // TODO: später aus ENV laden
 const PAGE_SIZE = 15;
 
 /** dünner API-Wrapper */
@@ -191,7 +187,7 @@ function useDebounced(value, delay = 350) {
   return debounced;
 }
 
-/** Daten-Hook für Patientensuche (Sort-Stub vorhanden, aber noch ohne API-Weitergabe) */
+/** Daten-Hook für Patientensuche (Sort-Stub vorhanden, noch ohne API-Weitergabe) */
 function usePatientSearch({ query, page, sort }) {
   const debouncedQuery = useDebounced(query);
   const [rows, setRows] = React.useState([]);
@@ -205,7 +201,6 @@ function usePatientSearch({ query, page, sort }) {
     setLoading(true);
     setError(null);
 
-    // NEU: immer callen – auch bei leerem Query
     const q = (debouncedQuery ?? "").trim();
 
     apiRequest(
@@ -215,7 +210,6 @@ function usePatientSearch({ query, page, sort }) {
       { signal: ctrl.signal }
     )
       .then((data) => {
-        // Erwartete Struktur: Page<PatientSummary>
         setRows(data.content || []);
         setTotal(
           typeof data.totalElements === "number" ? data.totalElements : 0
@@ -233,7 +227,7 @@ function usePatientSearch({ query, page, sort }) {
   return { rows, total, pageCount, loading, error };
 }
 
-/** Toolbar innerhalb des Pane (sticky im Scroll-Container) */
+/** Sub-Toolbar im Pane (statisch, nicht sticky) */
 function PatientSearchSubToolbar({
   query,
   onQueryChange,
@@ -266,7 +260,7 @@ function PatientSearchSubToolbar({
   );
 }
 
-/** einfache Pagination unten */
+/** Pagination */
 function Pagination({ page, pageCount, onChange }) {
   return (
     <div className="pagination">
@@ -292,7 +286,7 @@ function Pagination({ page, pageCount, onChange }) {
 }
 
 /** Tabellenkomponente */
-function PatientTable({ rows }) {
+function PatientTable({ rows, onSelect, selectedId }) {
   const fmtDate = (iso) => {
     try {
       if (!iso) return "—";
@@ -339,7 +333,7 @@ function PatientTable({ rows }) {
         <thead>
           <tr>
             <th>Pat.-ID</th>
-            <th>KVNR</th> {/* NEU */}
+            <th>KVNR</th>
             <th>Patientenname</th>
             <th>Geburtsdatum</th>
             <th>Geschlecht</th>
@@ -352,14 +346,19 @@ function PatientTable({ rows }) {
             <tr>
               <td colSpan={7} className="empty">
                 Keine Daten
-              </td>{" "}
-              {/* colspan angepasst */}
+              </td>
             </tr>
           ) : (
             rows.map((p) => (
-              <tr key={p.id}>
+              <tr
+                key={p.id}
+                onClick={() => onSelect && onSelect(p.id)}
+                className={
+                  "clickable-row" + (selectedId === p.id ? " selected" : "")
+                }
+              >
                 <td>{p.id}</td>
-                <td>{p.kvnr || "—"}</td> {/* NEU */}
+                <td>{p.kvnr || "—"}</td>
                 <td>{p.fullName || "—"}</td>
                 <td>{fmtDate(p.birthDate)}</td>
                 <td>{mapGender(p.gender)}</td>
@@ -382,10 +381,10 @@ function PatientTable({ rows }) {
   );
 }
 
+/** URL-Helpers */
 function getSearchParams() {
   return new URLSearchParams(window.location.search);
 }
-
 function updateSearchParams(updates) {
   const params = new URLSearchParams(window.location.search);
   Object.entries(updates).forEach(([k, v]) => {
@@ -404,8 +403,8 @@ function updateSearchParams(updates) {
   window.history.replaceState({}, "", newUrl);
 }
 
-/** Page/Pane in „Dashboard“-Optik, volle Breite */
-function ModulePatientSearch() {
+/** Patientensuche: linke Spalte (Liste) – Details gehen in rechte Sidebar */
+function ModulePatientSearch({ onSelect, selectedId }) {
   // Initialwerte aus URL
   const params = getSearchParams();
   const [query, setQuery] = React.useState(params.get("q") || "");
@@ -420,7 +419,7 @@ function ModulePatientSearch() {
     sort,
   });
 
-  // Query in URL schreiben
+  // Query & Page in URL schreiben
   React.useEffect(() => {
     updateSearchParams({ q: query, page });
   }, [query, page]);
@@ -432,9 +431,7 @@ function ModulePatientSearch() {
 
   return (
     <div className="split-left" role="region" aria-label="Patientensuche">
-      {/* <div className="pane-title">Patientensuche</div> --> entfernt */}
-
-      {/* Statischer Header: Suche/Info */}
+      {/* Kein pane-title, da im Tab enthalten */}
       <PatientSearchSubToolbar
         query={query}
         onQueryChange={setQuery}
@@ -451,7 +448,13 @@ function ModulePatientSearch() {
 
       {/* Nur die Ergebnisliste scrollt */}
       <div className="pane-scroll">
-        {!error && <PatientTable rows={rows} />}
+        {!error && (
+          <PatientTable
+            rows={rows}
+            onSelect={onSelect}
+            selectedId={selectedId}
+          />
+        )}
       </div>
 
       {pageCount > 1 && (
@@ -463,26 +466,180 @@ function ModulePatientSearch() {
   );
 }
 
-/** App-Rahmen mit Modulumschaltung per Tabs **/
-export default function App() {
-  const params = new URLSearchParams(window.location.search);
-  const [active, setActive] = React.useState(
-    params.get("tab") || "patientSearch"
-  );
-  const [leftOpen, setLeftOpen] = useState(true);
-  const [rightOpen, setRightOpen] = useState(false);
+/** Detail-Logik & Sidebar-Komponente */
+
+function usePatientDetail(patientId) {
+  const [detail, setDetail] = React.useState(null);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState(null);
 
   React.useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    params.set("tab", active);
+    if (!patientId) return;
+    const ctrl = new AbortController();
+    setLoading(true);
+    setError(null);
+
+    apiRequest(`/patients/${patientId}`, { signal: ctrl.signal })
+      .then((data) => setDetail(data || null))
+      .catch((e) => {
+        if (e.name !== "AbortError") setError(e);
+      })
+      .finally(() => setLoading(false));
+
+    return () => ctrl.abort();
+  }, [patientId]);
+
+  return { detail, loading, error };
+}
+
+function splitName(fullName) {
+  if (!fullName) return { firstName: "—", lastName: "" };
+  const parts = fullName.trim().split(/\s+/);
+  if (parts.length === 1) return { firstName: parts[0], lastName: "" };
+  const lastName = parts.pop();
+  const firstName = parts.join(" ");
+  return { firstName, lastName };
+}
+
+function formatDateDE(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return isNaN(d) ? "—" : d.toLocaleDateString("de-DE");
+}
+
+function calcAge(birthIso) {
+  if (!birthIso) return null;
+  const b = new Date(birthIso);
+  if (isNaN(b)) return null;
+  const today = new Date();
+  let age = today.getFullYear() - b.getFullYear();
+  const m = today.getMonth() - b.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < b.getDate())) age--;
+  return age;
+}
+
+function PatientDetailSidebar({ patientId }) {
+  const { detail, loading, error } = usePatientDetail(patientId);
+
+  if (!patientId)
+    return (
+      <div className="placeholder">Bitte wählen Sie einen Patienten aus.</div>
+    );
+  if (loading) return <div className="placeholder">Lade Patientendaten…</div>;
+  if (error)
+    return (
+      <div className="alert alert-error">{String(error.message || error)}</div>
+    );
+  if (!detail) return null;
+
+  const { firstName, lastName } = splitName(detail.fullName);
+  const age = calcAge(detail.birthDate);
+  const addr =
+    Array.isArray(detail.addresses) && detail.addresses.length > 0
+      ? detail.addresses[0]
+      : null;
+
+  return (
+    <div className="patient-sidebar">
+      {/* Kopf */}
+      <div className="patient-header">
+        <div className="patient-firstname">{firstName || "—"}</div>
+        <div className="patient-lastname">{(lastName || "").toUpperCase()}</div>
+
+        <div className="patient-age">
+          {age !== null ? `Alter: ${age} Jahre` : "Alter: —"}
+          {detail.birthDate ? ` (${formatDateDE(detail.birthDate)})` : ""}
+        </div>
+
+        <div className="patient-gender">{detail.gender || "—"}</div>
+      </div>
+
+      {/* Basis */}
+      <div className="detail-section">
+        <div className="section-title">Versicherung</div>
+        <div className="kv">
+          <span className="kv-key">KVNR:</span>
+          <span className="kv-val">{detail.kvnr || "—"}</span>
+          <span className="kv-key">Geschlecht:</span>
+          <span className="kv-val">{detail.gender || "—"}</span>
+          <span className="kv-key">Kasse:</span>
+          <span className="kv-val">{detail.insuranceCompanyName || "—"}</span>
+          <span className="kv-key">Status:</span>
+          <span className="kv-val">{detail.insuranceStatus || "—"}</span>
+        </div>
+      </div>
+
+      {/* Kontakt */}
+      <div className="detail-section">
+        <div className="section-title">Kontakt</div>
+        <div className="kv">
+          <span className="kv-key">Telefon:</span>
+          <span className="kv-val">{detail.phone || "—"}</span>
+          <span className="kv-key">E-Mail:</span>
+          <span className="kv-val">{detail.email || "—"}</span>
+        </div>
+      </div>
+
+      {/* Adresse */}
+      <div className="detail-section">
+        <div className="section-title">Adresse</div>
+        <div className="kv">
+          <span className="kv-key">Straße:</span>
+          <span className="kv-val">
+            {addr ? [addr.street, addr.houseNumber].join(" ") : "—"}
+          </span>
+          <span className="kv-key">PLZ / Ort:</span>
+          <span className="kv-val">
+            {addr ? [addr.postalCode, addr.city].join(" ") : "—"}
+          </span>
+          {(addr?.state || addr?.country) && (
+            <>
+              <span className="kv-key">Bundesland / Land:</span>
+              <span className="kv-val">
+                {[addr.state, addr.country].filter(Boolean).join(" / ")}
+              </span>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** App-Rahmen mit Modulumschaltung per Tabs **/
+export default function App() {
+  // --- URL-Sync: aktiver Tab (Default: patientSearch)
+  const urlParams = new URLSearchParams(window.location.search);
+  const [active, setActive] = React.useState(
+    urlParams.get("tab") || "patientSearch"
+  );
+
+  // --- Sidebar-Zustände
+  const [leftOpen, setLeftOpen] = React.useState(true);
+  const [rightOpen, setRightOpen] = React.useState(false);
+
+  // --- Auswahl für die rechte Sidebar (Patient-Details)
+  const [selectedPatientId, setSelectedPatientId] = React.useState(null);
+
+  // --- Tab → URL synchronisieren (?tab=...)
+  React.useEffect(() => {
+    const p = new URLSearchParams(window.location.search);
+    p.set("tab", active);
     window.history.replaceState(
       {},
       "",
-      `${window.location.pathname}?${params.toString()}`
+      `${window.location.pathname}?${p.toString()}`
     );
   }, [active]);
 
-  // Sidebar-Inhalte werden von Modulen bestimmt; hier Demo
+  // --- Patientensuche: rechte Sidebar automatisch öffnen/schließen
+  React.useEffect(() => {
+    if (active === "patientSearch") {
+      setRightOpen(!!selectedPatientId);
+    }
+  }, [active, selectedPatientId]);
+
+  // Sidebar-Inhalte
   const leftContent = (
     <div className="sidebar-section">
       <div className="sidebar-header">
@@ -501,24 +658,38 @@ export default function App() {
     </div>
   );
 
-  const rightContent = (
-    <div className="sidebar-section">
-      <div className="sidebar-header">
-        <strong>Werkzeuge</strong>
-        <button className="chip" onClick={() => setRightOpen(false)}>
-          ×
-        </button>
+  const rightContent =
+    active === "patientSearch" ? (
+      <div className="sidebar-section">
+        <div className="sidebar-header">
+          <strong>Patient</strong>
+          <button className="chip" onClick={() => setRightOpen(false)}>
+            ×
+          </button>
+        </div>
+        <div className="sidebar-body">
+          <PatientDetailSidebar patientId={selectedPatientId} />
+        </div>
       </div>
-      <div className="sidebar-body">
-        {Array.from({ length: 30 }).map((_, i) => (
-          <div key={i} className="tool-row">
-            Tool #{i + 1}
-          </div>
-        ))}
+    ) : (
+      <div className="sidebar-section">
+        <div className="sidebar-header">
+          <strong>Werkzeuge</strong>
+          <button className="chip" onClick={() => setRightOpen(false)}>
+            ×
+          </button>
+        </div>
+        <div className="sidebar-body">
+          {Array.from({ length: 30 }).map((_, i) => (
+            <div key={i} className="tool-row">
+              Tool #{i + 1}
+            </div>
+          ))}
+        </div>
       </div>
-    </div>
-  );
+    );
 
+  // Center-Content (Toolbar global nur außerhalb Patientensuche)
   const centerContent = (
     <>
       {active !== "patientSearch" && (
@@ -541,24 +712,22 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {active === "patientSearch" && (
+        <ModulePatientSearch
+          onSelect={setSelectedPatientId}
+          selectedId={selectedPatientId}
+        />
+      )}
+
       {active === "dashboard" && <ModuleDashboard />}
       {active === "patients" && <ModulePatientsSplit />}
-      {active === "patientSearch" && <ModulePatientSearch />}
-      {active === "reports" && (
-        <div className="demo-block">
-          <h2>Reports</h2>
-          <p>Platzhalter-Inhalt …</p>
-        </div>
-      )}
-      {active === "settings" && (
-        <div className="demo-block">
-          <h2>Settings</h2>
-          <p>Platzhalter-Inhalt …</p>
-        </div>
-      )}
+      {active === "reports" && <div className="row">Reports (Stub)</div>}
+      {active === "settings" && <div className="row">Settings (Stub)</div>}
     </>
   );
 
+  // --- Layout-Return
   return (
     <div className="app-shell">
       {/* Fixe obere Bereiche */}
@@ -573,7 +742,7 @@ export default function App() {
         rightOpen={rightOpen}
         leftContent={leftContent}
         rightContent={rightContent}
-        noCenterScroll={active === "patientSearch"} // NEU
+        noCenterScroll={active === "patientSearch"}
       >
         {centerContent}
       </MainLayout>

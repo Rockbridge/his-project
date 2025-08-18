@@ -561,3 +561,68 @@ body {
 .split-left[aria-label="Patientensuche"] .table tbody tr:hover {
   background: var(--gray-100);
 }
+
+/* Patientendetails Kopf */
+.patient-header {
+  background: #f5f7fa;
+  padding: 1rem;
+  border-radius: 0.75rem;
+  box-shadow: inset 0 -1px 0 #ddd;
+  margin-bottom: 1rem;
+}
+.patient-firstname {
+  font-size: 1.2rem;
+  font-weight: 500;
+  color: #333;
+}
+.patient-lastname {
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #111;
+}
+.patient-age {
+  font-size: 0.9rem;
+  color: #666;
+  margin-top: 0.25rem;
+}
+.patient-gender {
+  font-size: 0.9rem;
+  color: #555;
+  margin-top: 0.25rem;
+}
+
+/* Sektionen & Key/Value-Layout */
+/* Sektionen */
+.detail-section {
+  margin-bottom: 1.25rem;
+  padding: 0.75rem 1rem;
+  background: #fff;
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.section-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 0.5rem;
+}
+.kv {
+  display: grid;
+  grid-template-columns: 40% 60%;
+  row-gap: 0.4rem;
+}
+.kv-key {
+  font-weight: 500;
+  color: #444;
+}
+.kv-val {
+  color: #000;
+}
+
+/* --- Patientendetails Sidebar --- */
+.patient-sidebar {
+  font-size: 0.95rem;
+  color: #222;
+}
