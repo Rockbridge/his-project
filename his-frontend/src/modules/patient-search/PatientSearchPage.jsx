@@ -1,5 +1,4 @@
 import React from "react";
-import React from "react";
 import { MainLayout } from "../../layout";
 import ModulePatientSearch from "./components/ModulePatientSearch";
 import PatientDetailSidebar from "./components/PatientDetailSidebar";
