@@ -75,9 +75,11 @@ public class PatientService {
         }
 
         patient = patientRepository.save(patient);
-        if (!patient.getAddresses().isEmpty()) {
-            patient.getAddresses().forEach(address -> address.setPerson(patient));
-            addressRepository.saveAll(patient.getAddresses());
+        List<Address> addresses = patient.getAddresses();
+        if (!addresses.isEmpty()) {
+            addresses.forEach(address -> address.setPerson(patient));
+            logger.debug("Saving {} addresses", addresses.size());
+            addressRepository.saveAll(addresses);
         }
         
         logger.info("Created patient {} with KVNR {}", patient.getId(), request.getKvnr());
