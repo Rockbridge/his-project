@@ -38,3 +38,8 @@ backup/
 Sources/
 *.claude
 *.old
+init-scripts/Init Scripts-source.txt
+his-project-root-source.txt
+his-patient-service/Patient Service-source.txt
+his-identity-service/Identity Service-source.txt
+his-frontend/React Frontend-source.txt

@@ -1,5 +1,5 @@
 # HIS React Frontend - Complete Source Code Structure
-Generated: Mo 18 Aug 2025 18:50:35 CEST
+Generated: Di 19 Aug 2025 17:48:47 CEST
 Project: Hospital Information System (HIS) - React Frontend
 =========================================================
 
@@ -32,7 +32,7 @@ Project: Hospital Information System (HIS) - React Frontend
 ./src/modules/patient-search/hooks/usePatientDetail.js
 ./src/modules/patient-search/hooks/usePatientSearch.js
 ./src/modules/patient-search/PatientSearchPage.jsx
-./src/state/selection.js
+./src/state/selection.jsx
 ./vite.config.js
 ```
 
@@ -80,7 +80,7 @@ Project: Hospital Information System (HIS) - React Frontend
 │   │       │   └── usePatientSearch.js
 │   │       └── PatientSearchPage.jsx
 │   └── state
-│       └── selection.js
+│       └── selection.jsx
 └── vite.config.js
 
 12 directories, 32 files
@@ -523,7 +523,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
-import { SelectionProvider } from './state/selection'
+import { SelectionProvider } from './state/selection.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -537,7 +537,23 @@ createRoot(document.getElementById('root')).render(
 
 ### File: ./src/modules/patient-search/api.js
 ```javascript
+const BASE_URL = "http://localhost:8080/api/v1";
+const AUTH_HEADER = "Basic " + btoa("admin:dev-password"); // TODO: später aus ENV laden
 export const PAGE_SIZE = 15;
+
+export async function apiRequest(endpoint, init = {}) {
+  const res = await fetch(`${BASE_URL}${endpoint}`, {
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: AUTH_HEADER,
+      ...(init.headers || {}),
+    },
+    ...init,
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+  return res.json();
+}
+
 
 ```
 
@@ -547,8 +563,24 @@ import React from "react";
 import usePatientSearch from "../hooks/usePatientSearch";
 import PatientSearchSubToolbar from "./PatientSearchSubToolbar";
 import PatientTable from "./PatientTable";
-import Pagination from "../../../components/Pagination";
-import { useSelection } from "../../../state/selection";
+
+function Pagination({ page, pageCount, onChange }) {
+  return (
+    <div className="pagination">
+      <button className="btn" disabled={page <= 0} onClick={() => onChange(page - 1)}>
+        ‹ Zurück
+      </button>
+      <span className="muted">Seite {page + 1} / {Math.max(pageCount, 1)}</span>
+      <button
+        className="btn"
+        disabled={page + 1 >= pageCount}
+        onClick={() => onChange(page + 1)}
+      >
+        Weiter ›
+      </button>
+    </div>
+  );
+}
 
 function getSearchParams() {
   return new URLSearchParams(window.location.search);
@@ -572,8 +604,8 @@ function updateSearchParams(updates) {
   window.history.replaceState({}, "", newUrl);
 }
 
-export default function ModulePatientSearch() {
-  const { selectedPatientId, setSelectedPatientId } = useSelection();
+export default function ModulePatientSearch({ onSelect, selectedId }) {
+
   const params = getSearchParams();
   const [query, setQuery] = React.useState(params.get("q") || "");
   const [page, setPage] = React.useState(parseInt(params.get("page") || "0", 10));
@@ -609,7 +641,7 @@ export default function ModulePatientSearch() {
 
       <div className="pane-scroll">
         {!error && (
-          <PatientTable rows={rows} onSelect={setSelectedPatientId} selectedId={selectedPatientId} />
+          <PatientTable rows={rows} onSelect={onSelect} selectedId={selectedId} />
         )}
       </div>
 
@@ -627,7 +659,6 @@ export default function ModulePatientSearch() {
 ### File: ./src/modules/patient-search/components/PatientDetailSidebar.jsx
 ```javascript
 import React from "react";
-import { useSelection } from "../../../state/selection";
 import usePatientDetail from "../hooks/usePatientDetail";
 
 function splitName(fullName) {
@@ -656,8 +687,8 @@ function calcAge(birthIso) {
   return age;
 }
 
-export default function PatientDetailSidebar() {
-  const { selectedPatientId: patientId } = useSelection();
+export default function PatientDetailSidebar({ patientId }) {
+
   const { detail, loading, error } = usePatientDetail(patientId);
 
   if (!patientId)
@@ -750,7 +781,6 @@ export default function PatientDetailSidebar() {
 ### File: ./src/modules/patient-search/components/PatientSearchSubToolbar.jsx
 ```javascript
 import React from "react";
-import Button from "../../../components/Button";
 
 export default function PatientSearchSubToolbar({
   query,
@@ -769,9 +799,10 @@ export default function PatientSearchSubToolbar({
           onChange={(e) => onQueryChange(e.target.value)}
           aria-label="Patientensuche"
         />
-        <Button onClick={onReset} disabled={!query}>
+        <button className="btn" onClick={onReset} disabled={!query}>
           Zurücksetzen
-        </Button>
+        </button>
+
       </div>
       <div className="subtoolbar-right">
         {loading ? (
@@ -789,7 +820,6 @@ export default function PatientSearchSubToolbar({
 ### File: ./src/modules/patient-search/components/PatientTable.jsx
 ```javascript
 import React from "react";
-import Table from "../../../components/Table";
 
 export default function PatientTable({ rows, onSelect, selectedId }) {
   const fmtDate = (iso) => {
@@ -830,7 +860,7 @@ export default function PatientTable({ rows, onSelect, selectedId }) {
 
   return (
     <div className="table-wrap">
-      <Table role="table" aria-label="Suchergebnisse Patienten">
+      <table className="table" role="table" aria-label="Suchergebnisse Patienten">
         <thead>
           <tr>
             <th>Pat.-ID</th>
@@ -877,7 +907,7 @@ export default function PatientTable({ rows, onSelect, selectedId }) {
             ))
           )}
         </tbody>
-      </Table>
+      </table>
     </div>
   );
 }
@@ -887,7 +917,8 @@ export default function PatientTable({ rows, onSelect, selectedId }) {
 ### File: ./src/modules/patient-search/hooks/usePatientDetail.js
 ```javascript
 import React from "react";
-import { apiRequest } from "../../../api/client";
+import { apiRequest } from "../api";
+
 
 export default function usePatientDetail(patientId) {
   const [detail, setDetail] = React.useState(null);
@@ -918,8 +949,8 @@ export default function usePatientDetail(patientId) {
 ### File: ./src/modules/patient-search/hooks/usePatientSearch.js
 ```javascript
 import React from "react";
-import { PAGE_SIZE } from "../api";
-import { apiRequest } from "../../../api/client";
+import { apiRequest, PAGE_SIZE } from "../api";
+
 
 function useDebounced(value, delay = 350) {
   const [debounced, setDebounced] = React.useState(value);
@@ -972,15 +1003,15 @@ export default function usePatientSearch({ query, page /* sort */ }) {
 ### File: ./src/modules/patient-search/PatientSearchPage.jsx
 ```javascript
 import React from "react";
-import { useSelection } from "../../state/selection";
 import { MainLayout } from "../../layout";
 import ModulePatientSearch from "./components/ModulePatientSearch";
 import PatientDetailSidebar from "./components/PatientDetailSidebar";
 
 export default function PatientSearchPage() {
-  const { selectedPatientId } = useSelection();
   const [leftOpen, setLeftOpen] = React.useState(true);
   const [rightOpen, setRightOpen] = React.useState(false);
+  const [selectedPatientId, setSelectedPatientId] = React.useState(null);
+
 
   React.useEffect(() => {
     setRightOpen(!!selectedPatientId);
@@ -1013,7 +1044,7 @@ export default function PatientSearchPage() {
         </button>
       </div>
       <div className="sidebar-body">
-        <PatientDetailSidebar />
+        <PatientDetailSidebar patientId={selectedPatientId} />
       </div>
     </div>
   );
@@ -1026,14 +1057,18 @@ export default function PatientSearchPage() {
       rightContent={rightContent}
       noCenterScroll={true}
     >
-      <ModulePatientSearch />
+      <ModulePatientSearch
+        onSelect={setSelectedPatientId}
+        selectedId={selectedPatientId}
+      />
+
     </MainLayout>
   );
 }
 
 ```
 
-### File: ./src/state/selection.js
+### File: ./src/state/selection.jsx
 ```javascript
 import React from "react";
 
@@ -1055,6 +1090,7 @@ export function SelectionProvider({ children }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useSelection() {
   const ctx = React.useContext(SelectionContext);
   if (!ctx) {

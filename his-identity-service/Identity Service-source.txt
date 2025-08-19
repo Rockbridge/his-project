@@ -1,5 +1,5 @@
 # HIS Identity Service - Complete Source Code Structure
-Generated: Mo 18 Aug 2025 18:50:34 CEST
+Generated: Di 19 Aug 2025 17:48:46 CEST
 Project: Hospital Information System (HIS) - Identity Service
 =========================================================
 
@@ -214,8 +214,11 @@ distributionUrl=https://repo.maven.apache.org/maven2/org/apache/maven/apache-mav
 
 ### File: ./Dockerfile
 ```dockerfile
+# syntax=docker/dockerfile:1
 # Multi-Stage Docker Build for Identity Service
-FROM eclipse-temurin:21-jdk AS build
+ARG BUILDPLATFORM
+ARG TARGETPLATFORM
+FROM --platform=$BUILDPLATFORM eclipse-temurin:21-jdk AS build
 
 WORKDIR /app
 
@@ -227,7 +230,8 @@ RUN ./mvnw dependency:go-offline -B || mvn dependency:go-offline -B
 COPY src src
 RUN ./mvnw package -DskipTests -B || mvn package -DskipTests -B
 
-FROM eclipse-temurin:21-jre
+FROM --platform=$TARGETPLATFORM eclipse-temurin:21-jre
+
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 RUN groupadd -g 1001 appgroup && useradd -r -u 1001 -g appgroup appuser
 WORKDIR /app
@@ -277,6 +281,7 @@ Der Identity-/Auth-Service stellt Benutzer- und Rollenverwaltung bereit und verg
 - Default-Port: `8083`
 - Health-Endpoint: `/actuator/health`
 - Docker-Image basiert auf `eclipse-temurin:21`.
+- Dockerfile nutzt Multi-Architecture-Basisimages (amd64/arm64)
 
 ## Zukunft
 - Erweiterung um zusätzliche Kontextparameter und feinere Policies.

@@ -1,5 +1,5 @@
 # HIS Project Root - Configuration and Infrastructure Files
-Generated: Mo 18 Aug 2025 18:50:29 CEST
+Generated: Di 19 Aug 2025 17:48:41 CEST
 Project: Hospital Information System (HIS) - Root Directory
 =========================================================
 
@@ -15,6 +15,9 @@ Project: Hospital Information System (HIS) - Root Directory
 ./his-api-gateway/API Gateway-source.txt
 ./his-api-gateway/Dockerfile
 ./his-api-gateway/pom.xml
+./his-authorization-service/Dockerfile
+./his-authorization-service/pom.xml
+./his-authorization-service/README.md
 ./his-complete-documentation.md
 ./his-encounter-service/Dockerfile
 ./his-encounter-service/Encounter Service-source.txt
@@ -25,6 +28,7 @@ Project: Hospital Information System (HIS) - Root Directory
 ./his-frontend/React Frontend-source.txt
 ./his-frontend/README.md
 ./his-identity-service/Dockerfile
+./his-identity-service/Identity Service-source.txt
 ./his-identity-service/pom.xml
 ./his-identity-service/README.md
 ./his-patient-service/create_java.sh
@@ -41,11 +45,12 @@ Project: Hospital Information System (HIS) - Root Directory
 ## Available Services
 ```
 drwxr-xr-x  14 mhn  staff    448 16 Aug 14:35 his-api-gateway
-drwxr-xr-x@ 19 mhn  staff    608 16 Aug 14:35 his-encounter-service
+drwxr-xr-x@  9 mhn  staff    288 18 Aug 21:33 his-authorization-service
+drwxr-xr-x@ 19 mhn  staff    608 18 Aug 22:53 his-encounter-service
 drwxr-xr-x  14 mhn  staff    448 16 Aug 14:35 his-frontend
-drwxr-xr-x@ 10 mhn  staff    320 18 Aug 18:46 his-identity-service
-drwxr-xr-x  21 mhn  staff    672 16 Aug 14:35 his-patient-service
-drwxr-xr-x   5 mhn  staff    160 18 Aug 18:44 init-scripts
+drwxr-xr-x@ 11 mhn  staff    352 18 Aug 21:33 his-identity-service
+drwxr-xr-x  18 mhn  staff    576 18 Aug 23:39 his-patient-service
+drwxr-xr-x   5 mhn  staff    160 18 Aug 21:33 init-scripts
 ```
 
 ## Root Configuration Files
@@ -113,7 +118,16 @@ services:
     networks:
       - his-network-minimal
     healthcheck:
-      test: ["CMD", "ldapsearch", "-x", "-H", "ldap://localhost:389", "-b", "dc=example,dc=org"]
+      test:
+        [
+          "CMD",
+          "ldapsearch",
+          "-x",
+          "-H",
+          "ldap://localhost:389",
+          "-b",
+          "dc=example,dc=org",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -137,10 +151,16 @@ services:
       SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL: true
       SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA: his_patient
       # LIQUIBASE AKTIVIEREN - HINZUGEFÜGT
-      SPRING_LIQUIBASE_ENABLED: true
+      SPRING_LIQUIBASE_ENABLED: false
       SPRING_LIQUIBASE_CHANGE_LOG: classpath:db/changelog/db.changelog-master.xml
       SPRING_LIQUIBASE_DEFAULT_SCHEMA: his_patient
       SPRING_LIQUIBASE_CONTEXTS: docker,production
+
+      # Flyway Configuration
+      SPRING_FLYWAY_SCHEMAS: his_patient
+      SPRING_FLYWAY_LOCATIONS: classpath:db/migration
+      SPRING_FLYWAY_BASELINE_ON_MIGRATE: true
+
       # Profile Configuration
       SPRING_PROFILES_ACTIVE: docker-minimal
       # Logging Configuration
@@ -194,13 +214,18 @@ services:
       SPRING_DATASOURCE_PASSWORD: dev_password
       SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
       # JPA Configuration - KORRIGIERT
-      SPRING_JPA_HIBERNATE_DDL_AUTO: none
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
       SPRING_JPA_SHOW_SQL: true
       SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.PostgreSQLDialect
       SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA: his_encounter
       SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.PostgreSQLDialect
       # Explizit H2 deaktivieren
       SPRING_H2_CONSOLE_ENABLED: false
+      # Flyway aktivieren
+      SPRING_FLYWAY_ENABLED: true
+      SPRING_FLYWAY_SCHEMAS: his_encounter
+      SPRING_FLYWAY_LOCATIONS: classpath:db/migration
+      SPRING_FLYWAY_BASELINE_ON_MIGRATE: true
       # Security Configuration - NEU
       SPRING_SECURITY_USER_NAME: admin
       SPRING_SECURITY_USER_PASSWORD: dev-password
@@ -259,7 +284,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/his_db
       SPRING_DATASOURCE_USERNAME: his_user
       SPRING_DATASOURCE_PASSWORD: dev_password
-      SPRING_JPA_HIBERNATE_DDL_AUTO: none
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
       SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA: his_auth
       SPRING_PROFILES_ACTIVE: docker-minimal
       SERVER_PORT: 8083
@@ -269,6 +294,7 @@ services:
       SPRING_LDAP_BASE: dc=example,dc=org
       SPRING_LDAP_USERNAME: cn=admin,dc=example,dc=org
       SPRING_LDAP_PASSWORD: admin
+
     ports:
       - "8083:8083"
     networks:
@@ -280,7 +306,14 @@ services:
         condition: service_healthy
     healthcheck:
       test:
-        ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8083/actuator/health"]
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:8083/actuator/health",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -288,6 +321,39 @@ services:
     restart: unless-stopped
     volumes:
       - ./logs/identity:/app/logs
+
+  # Authorization Service - Port 8084
+  authorization-service:
+    build:
+      context: ./his-authorization-service
+      dockerfile: Dockerfile
+    container_name: his-authorization-service-minimal
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/his_db
+      SPRING_DATASOURCE_USERNAME: his_user
+      SPRING_DATASOURCE_PASSWORD: dev_password
+      SPRING_JPA_HIBERNATE_DDL_AUTO: none
+      SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA: his_authorization
+      SPRING_PROFILES_ACTIVE: docker-minimal
+      SERVER_PORT: 8084
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,metrics
+      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
+    ports:
+      - "8084:8084"
+    networks:
+      - his-network-minimal
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8084/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    volumes:
+      - ./logs/authorization:/app/logs
 
   # API Gateway - Port 8080
   api-gateway:
