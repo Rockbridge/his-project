@@ -112,11 +112,11 @@
                     </dependency>
                 </dependencies>
                 <configuration>
-                    <url>jdbc:postgresql://localhost:5432/pvs_db</url>
-                    <user>pvs_user</user>
+                    <url>jdbc:postgresql://localhost:5432/his_db</url>
+                    <user>his_user</user>
                     <password>dev_password</password>
                     <schemas>
-                        <schema>pvs_patient</schema>
+                        <schema>his_patient</schema>
                     </schemas>
                     <locations>
                         <location>classpath:db/migration</location>
