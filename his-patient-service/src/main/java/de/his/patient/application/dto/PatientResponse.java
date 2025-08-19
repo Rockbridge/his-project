@@ -61,6 +61,9 @@ public class PatientResponse {
     @Schema(description = "Consent for data processing")
     private Boolean consentDataProcessing;
 
+    @Schema(description = "List of patient addresses")
+    private List<AddressResponse> addresses;
+
     @Schema(description = "Creation timestamp")
     private LocalDateTime createdAt;
 
@@ -75,6 +78,7 @@ public class PatientResponse {
                           InsuranceType insuranceType, String insuranceCompanyId,
                           String insuranceCompanyName, String phone, String email,
                           Boolean consentCommunication, Boolean consentDataProcessing,
+                          List<AddressResponse> addresses,
                           LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.id = id;
         this.firstName = firstName;
@@ -92,6 +96,7 @@ public class PatientResponse {
         this.email = email;
         this.consentCommunication = consentCommunication;
         this.consentDataProcessing = consentDataProcessing;
+        this.addresses = addresses;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
@@ -144,6 +149,9 @@ public class PatientResponse {
 
     public Boolean getConsentDataProcessing() { return consentDataProcessing; }
     public void setConsentDataProcessing(Boolean consentDataProcessing) { this.consentDataProcessing = consentDataProcessing; }
+
+    public List<AddressResponse> getAddresses() { return addresses; }
+    public void setAddresses(List<AddressResponse> addresses) { this.addresses = addresses; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

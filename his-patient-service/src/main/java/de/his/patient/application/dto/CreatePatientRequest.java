@@ -63,6 +63,10 @@ public class CreatePatientRequest {
     @Schema(description = "Consent for data processing", example = "true")
     private Boolean consentDataProcessing;
 
+    @Valid
+    @Schema(description = "List of patient addresses")
+    private List<CreateAddressRequest> addresses;
+
     public CreatePatientRequest() {}
 
     // Getters and Setters
@@ -107,4 +111,7 @@ public class CreatePatientRequest {
 
     public Boolean getConsentDataProcessing() { return consentDataProcessing; }
     public void setConsentDataProcessing(Boolean consentDataProcessing) { this.consentDataProcessing = consentDataProcessing; }
+
+    public List<CreateAddressRequest> getAddresses() { return addresses; }
+    public void setAddresses(List<CreateAddressRequest> addresses) { this.addresses = addresses; }
 }
