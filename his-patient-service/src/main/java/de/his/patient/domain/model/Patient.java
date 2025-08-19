@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List; // ← FEHLENDER IMPORT
 
 @Entity
 @Table(name = "patients", schema = "his_patient", indexes = {
@@ -40,6 +42,11 @@ public class Patient extends Person {
     @Column(name = "consent_data_processing")
     private Boolean consentDataProcessing;
 
+    // ✅ ADRESSEN-BEZIEHUNG (muss VOR den Konstruktoren stehen)
+    @OneToMany(mappedBy = "person", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
+    private List<Address> addresses = new ArrayList<>();
+
+    // Konstruktoren
     public Patient() {
     }
 
@@ -50,9 +57,10 @@ public class Patient extends Person {
         this.insuranceStatus = InsuranceStatus.ACTIVE;
         this.consentCommunication = false;
         this.consentDataProcessing = false;
+        this.addresses = new ArrayList<>(); // ← Initialisierung hinzufügen
     }
 
-    // Getters and Setters
+    // Getters and Setters für Insurance
     public String getKvnr() {
         return kvnr;
     }
@@ -117,6 +125,21 @@ public class Patient extends Person {
         this.consentDataProcessing = consentDataProcessing;
     }
 
+    // ✅ ADRESSEN-METHODEN
+    public List<Address> getAddresses() {
+        return addresses;
+    }
+
+    public void setAddresses(List<Address> addresses) {
+        this.addresses = addresses;
+    }
+
+    public void addAddress(Address address) {
+        address.setPerson(this); // Bidirektionale Beziehung setzen
+        this.addresses.add(address);
+    }
+
+    // Business Logic
     public boolean isInsuranceValid() {
         return insuranceStatus == InsuranceStatus.ACTIVE &&
                 kvnr != null && !kvnr.isEmpty();

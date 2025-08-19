@@ -68,7 +68,7 @@ INSURANCE_COMPANIES=(
 )
 
 CITIES=(
-    "München" "Berlin" "Hamburg" "Frankfurt am Main" "Köln" "Stuttgart" "Düsseldorf" "Dortmund"
+    "München" "Berlin" "Hamburg" "Frankfurt am Main" "Köln" "Stuttgart" "Düsseldorf" "Dortmund" 
     "Essen" "Leipzig" "Bremen" "Dresden" "Hannover" "Nürnberg" "Duisburg" "Bochum"
     "Wuppertal" "Bielefeld" "Bonn" "Münster" "Mannheim" "Augsburg" "Wiesbaden" "Karlsruhe"
     "Mönchengladbach" "Gelsenkirchen" "Aachen" "Braunschweig" "Chemnitz" "Kiel" "Halle" "Magdeburg"
@@ -149,7 +149,12 @@ generate_mobile_phone() {
 generate_landline_phone() {
     local area_code=${LANDLINE_AREA_CODES[$((RANDOM % ${#LANDLINE_AREA_CODES[@]}))]}
     local number_length=$((6 + RANDOM % 3))  # 6-8 digits
-    local number=$(printf "%0${number_length}d" $((RANDOM % $(echo "10^${number_length}" | bc))))
+    if command -v bc &> /dev/null; then
+        local max_number=$(echo "10^${number_length}" | bc)
+        local number=$(printf "%0${number_length}d" $((RANDOM % max_number)))
+    else
+        local number=$(printf "%0${number_length}d" $((RANDOM % 10000000)))
+    fi
     echo "+49 ${area_code} ${number}"
 }
 
@@ -264,6 +269,86 @@ check_service() {
     exit 1
 }
 
+# Function to create JSON with proper escaping
+create_json_payload() {
+    local first_name="$1"
+    local last_name="$2"
+    local title="$3"
+    local birth_date="$4"
+    local gender="$5"
+    local kvnr="$6"
+    local insurance_number="$7"
+    local insurance_type="$8"
+    local insurance_company_id="$9"
+    local insurance_company="${10}"
+    local street="${11}"
+    local house_number="${12}"
+    local postal_code="${13}"
+    local city="${14}"
+    local state="${15}"
+    local phone="${16}"
+    local mobile="${17}"
+    local email="${18}"
+    local consent="${19}"
+    
+    # Escape JSON strings properly
+    first_name=$(echo "$first_name" | sed 's/"/\\"/g')
+    last_name=$(echo "$last_name" | sed 's/"/\\"/g')
+    title=$(echo "$title" | sed 's/"/\\"/g')
+    insurance_company=$(echo "$insurance_company" | sed 's/"/\\"/g')
+    street=$(echo "$street" | sed 's/"/\\"/g')
+    city=$(echo "$city" | sed 's/"/\\"/g')
+    state=$(echo "$state" | sed 's/"/\\"/g')
+    
+    # Build JSON step by step
+    local json='{'
+    json="${json}\"firstName\":\"${first_name}\""
+    json="${json},\"lastName\":\"${last_name}\""
+    
+    if [ -n "$title" ]; then
+        json="${json},\"title\":\"${title}\""
+    fi
+    
+    json="${json},\"birthDate\":\"${birth_date}\""
+    json="${json},\"gender\":\"${gender}\""
+    json="${json},\"kvnr\":\"${kvnr}\""
+    json="${json},\"insuranceNumber\":\"${insurance_number}\""
+    json="${json},\"insuranceStatus\":\"ACTIVE\""
+    json="${json},\"insuranceType\":\"${insurance_type}\""
+    json="${json},\"insuranceCompanyId\":\"${insurance_company_id}\""
+    json="${json},\"insuranceCompanyName\":\"${insurance_company}\""
+    
+    # Add addresses array
+    json="${json},\"addresses\":[{"
+    json="${json}\"addressType\":\"PRIMARY\""
+    json="${json},\"street\":\"${street}\""
+    json="${json},\"houseNumber\":\"${house_number}\""
+    json="${json},\"postalCode\":\"${postal_code}\""
+    json="${json},\"city\":\"${city}\""
+    json="${json},\"state\":\"${state}\""
+    json="${json},\"country\":\"Deutschland\""
+    json="${json}}]"
+    
+    # Add optional contact fields
+    if [ -n "$phone" ]; then
+        json="${json},\"phone\":\"${phone}\""
+    fi
+    
+    if [ -n "$mobile" ]; then
+        json="${json},\"mobile\":\"${mobile}\""
+    fi
+    
+    if [ -n "$email" ]; then
+        json="${json},\"email\":\"${email}\""
+    fi
+    
+    json="${json},\"consentCommunication\":${consent}"
+    json="${json},\"consentDataProcessing\":true"
+    json="${json}}"
+    
+    echo "$json"
+}
+
 # Function to create a single patient
 create_patient() {
     local index=$1
@@ -289,6 +374,7 @@ create_patient() {
     local insurance_type=${insurance_types[$((RANDOM % 3))]}
     local insurance_company=${INSURANCE_COMPANIES[$((RANDOM % ${#INSURANCE_COMPANIES[@]}))]}
     local insurance_number=$(printf "%09d" $((100000000 + RANDOM % 900000000)))
+    local insurance_company_id=$(printf "%08d" $((10000000 + RANDOM % 90000000)))
     
     # Generate address data
     local address_data=$(generate_address)
@@ -321,25 +407,15 @@ create_patient() {
         email=$(generate_email "$first_name" "$last_name" "$birth_year")
     fi
     
-    # Create JSON payload with complete address and contact data
-    local json_payload=$(cat <<EOF
-{
-    "firstName": "$first_name",
-    "lastName": "$last_name",
-    $([ -n "$title" ] && echo "\"title\": \"$title\",")
-    "birthDate": "$birth_date",
-    "gender": "$gender",
-    "kvnr": "$kvnr",
-    "insuranceNumber": "$insurance_number",
-    "insuranceStatus": "ACTIVE",
-    "insuranceType": "$insurance_type",
-    "insuranceCompanyId": "$(printf "%08d" $((10000000 + RANDOM % 90000000)))",
-    "insuranceCompanyName": "$insurance_company",
-    "addresses": [
-        {
-            "addressType": "PRIMARY",
-            "street": "$(echo "$street" | sed 's/\([0-9]\+[a-c]*\)$//')",
-            "houseNumber": "$(echo "$street" | grep -o '[0-9]\+[a-c]*
+    # Generate consent
+    local consent=$([ $((RANDOM % 10)) -lt 8 ] && echo "true" || echo "false")
+    
+    # Create JSON payload
+    local json_payload=$(create_json_payload \
+        "$first_name" "$last_name" "$title" "$birth_date" "$gender" "$kvnr" \
+        "$insurance_number" "$insurance_type" "$insurance_company_id" "$insurance_company" \
+        "$street" "$house_number" "$postal_code" "$city" "$state" \
+        "$phone" "$mobile" "$email" "$consent")
     
     # Make API call
     local response=$(curl -s -X POST "${BASE_URL}/api/v1/patients" \
@@ -413,7 +489,7 @@ main() {
     
     # Show some sample patients
     if [ $successful -gt 0 ]; then
-        echo -e "${BLUE}👥 Sample patients with addresses created:${NC}"
+        echo -e "${BLUE}👥 Sample patients created:${NC}"
         curl -s -H "$AUTH_HEADER" "${BASE_URL}/api/v1/patients?page=0&size=5" | \
             jq -r '.content[]? | "   • \(.firstName) \(.lastName) - \(.kvnr)"'
         echo ""
@@ -424,122 +500,6 @@ main() {
         
         echo -e "${YELLOW}📝 Note: Addresses may not be visible due to current Patient Service implementation${NC}"
         echo -e "${YELLOW}   The address data is being sent correctly in the expected format.${NC}"
-    fi
-}
-
-# Check dependencies
-if ! command -v curl &> /dev/null; then
-    echo -e "${RED}❌ curl is required but not installed.${NC}"
-    exit 1
-fi
-
-if ! command -v jq &> /dev/null; then
-    echo -e "${RED}❌ jq is required but not installed.${NC}"
-    echo -e "${YELLOW}   On macOS: brew install jq${NC}"
-    echo -e "${YELLOW}   On Ubuntu: sudo apt install jq${NC}"
-    exit 1
-fi
-
-if ! command -v bc &> /dev/null; then
-    echo -e "${YELLOW}⚠️  bc not found - statistics calculation may be limited${NC}"
-fi
-
-# Run main function
-main "$@")",
-            "postalCode": "$postal_code",
-            "city": "$city",
-            "state": "$(get_state_for_city "$city")",
-            "country": "Deutschland"
-        }
-    ],
-    $([ -n "$phone" ] && echo "\"phone\": \"$phone\",")
-    $([ -n "$mobile" ] && echo "\"mobile\": \"$mobile\",")
-    $([ -n "$email" ] && echo "\"email\": \"$email\",")
-    "consentCommunication": $([ $((RANDOM % 10)) -lt 8 ] && echo "true" || echo "false"),
-    "consentDataProcessing": true
-}
-EOF
-    )
-    
-    # Make API call
-    local response=$(curl -s -X POST "${BASE_URL}/api/v1/patients" \
-        -H "$AUTH_HEADER" \
-        -H "$CONTENT_TYPE" \
-        -d "$json_payload")
-    
-    # Check if creation was successful
-    if echo "$response" | jq -e '.id' > /dev/null 2>&1; then
-        local patient_id=$(echo "$response" | jq -r '.id')
-        local contact_info=""
-        [ -n "$mobile" ] && contact_info="📱"
-        [ -n "$email" ] && contact_info="${contact_info}📧"
-        echo -e "${GREEN}✅ Patient $index: $first_name $last_name ($city) $contact_info (ID: ${patient_id:0:8}...)${NC}"
-        return 0
-    else
-        echo -e "${RED}❌ Patient $index failed: $first_name $last_name${NC}"
-        echo -e "${RED}   Error: $(echo "$response" | jq -r '.message // .error // "Unknown error"')${NC}"
-        return 1
-    fi
-}
-
-# Main execution
-main() {
-    echo -e "${BLUE}🏥 HIS Patient Service - Creating 100 Test Patients${NC}"
-    echo -e "${BLUE}=================================================${NC}"
-    echo ""
-    
-    # Check service availability
-    check_service
-    echo ""
-    
-    # Initialize counters
-    local successful=0
-    local failed=0
-    local start_time=$(date +%s)
-    
-    echo -e "${BLUE}🚀 Starting patient creation...${NC}"
-    echo ""
-    
-    # Create patients
-    for i in $(seq 1 100); do
-        if create_patient $i; then
-            ((successful++))
-        else
-            ((failed++))
-        fi
-        
-        # Progress indicator every 10 patients
-        if [ $((i % 10)) -eq 0 ]; then
-            echo -e "${YELLOW}📊 Progress: $i/100 patients processed (✅ $successful success, ❌ $failed failed)${NC}"
-            echo ""
-        fi
-        
-        # Small delay to avoid overwhelming the service
-        sleep 0.1
-    done
-    
-    # Final statistics
-    local end_time=$(date +%s)
-    local duration=$((end_time - start_time))
-    
-    echo ""
-    echo -e "${BLUE}📋 FINAL STATISTICS${NC}"
-    echo -e "${BLUE}==================${NC}"
-    echo -e "${GREEN}✅ Successfully created: $successful patients${NC}"
-    echo -e "${RED}❌ Failed: $failed patients${NC}"
-    echo -e "${YELLOW}⏱️  Total time: ${duration}s${NC}"
-    echo -e "${YELLOW}📊 Rate: $(echo "scale=2; $successful/$duration" | bc 2>/dev/null || echo "N/A") patients/second${NC}"
-    echo ""
-    
-    # Show some sample patients
-    if [ $successful -gt 0 ]; then
-        echo -e "${BLUE}👥 Sample patients with addresses created:${NC}"
-        curl -s -H "$AUTH_HEADER" "${BASE_URL}/api/v1/patients?page=0&size=5" | \
-            jq -r '.content[]? | "   • \(.firstName) \(.lastName) - \(.address.street), \(.address.postalCode) \(.address.city) (\(.kvnr))"'
-        echo ""
-        
-        echo -e "${YELLOW}💡 You can view all patients with full data:${NC}"
-        echo -e "${YELLOW}   curl -s -H '$AUTH_HEADER' '${BASE_URL}/api/v1/patients?page=0&size=20' | jq '.content[] | {name: \"\\(.firstName) \\(.lastName)\", address: .address, contact: {phone: .phone, mobile: .mobile, email: .email}}'${NC}"
     fi
 }
 
