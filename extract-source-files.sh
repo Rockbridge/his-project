@@ -160,13 +160,14 @@ extract_service() {
         echo "" >> "$output_file"
     done
     
-    # File in Sources Verzeichnis kopieren
+    # File in Sources Verzeichnis kopieren und original löschen
     cp "$output_file" "../Sources/"
+    rm "$output_file"  # ✅ NEUE ZEILE: Löscht das temporäre File nach dem Kopieren
     
     # Zurück zum Root-Verzeichnis
     cd ..
     
-    echo "${service_name} extraction completed: Sources/${output_file}"
+    echo "${service_name} extraction completed: Sources/${output_file} (original cleaned up)"
 }
 
 # Root Directory Files extrahieren
@@ -248,10 +249,11 @@ extract_root_files() {
         fi
     done
     
-    # File in Sources Verzeichnis kopieren
+    # File in Sources Verzeichnis kopieren und original löschen
     cp "$output_file" "Sources/"
+    rm "$output_file"  # ✅ NEUE ZEILE: Löscht das temporäre File nach dem Kopieren
     
-    echo "Root directory extraction completed: Sources/$output_file"
+    echo "Root directory extraction completed: Sources/$output_file (original cleaned up)"
 }
 
 # Hauptausführung
@@ -341,3 +343,4 @@ fi
 echo "- Summary: Sources/00-extraction-summary.txt"
 echo ""
 echo "All source code extractions completed and copied to Sources directory!"
+echo "Temporary files have been cleaned up from original directories."
