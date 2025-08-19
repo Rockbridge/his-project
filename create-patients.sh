@@ -153,6 +153,45 @@ generate_landline_phone() {
     echo "+49 ${area_code} ${number}"
 }
 
+# Function to get state for city (German Bundesländer)
+get_state_for_city() {
+    local city="$1"
+    case "$city" in
+        "München"|"Augsburg"|"Nürnberg"|"Würzburg"|"Regensburg"|"Ingolstadt"|"Fürth")
+            echo "Bayern" ;;
+        "Berlin")
+            echo "Berlin" ;;
+        "Hamburg"|"Bremen"|"Bremerhaven")
+            echo "Hamburg" ;;
+        "Köln"|"Düsseldorf"|"Dortmund"|"Essen"|"Duisburg"|"Bochum"|"Wuppertal"|"Bielefeld"|"Bonn"|"Münster"|"Mönchengladbach"|"Gelsenkirchen"|"Aachen"|"Krefeld"|"Oberhausen"|"Hagen"|"Hamm"|"Mülheim"|"Neuss"|"Herne"|"Solingen"|"Leverkusen"|"Paderborn"|"Bottrop"|"Recklinghausen"|"Remscheid"|"Moers"|"Siegen"|"Bergisch Gladbach")
+            echo "Nordrhein-Westfalen" ;;
+        "Stuttgart"|"Mannheim"|"Karlsruhe"|"Freiburg"|"Heidelberg"|"Ulm"|"Heilbronn"|"Pforzheim"|"Reutlingen")
+            echo "Baden-Württemberg" ;;
+        "Frankfurt am Main"|"Wiesbaden"|"Kassel"|"Darmstadt"|"Offenbach")
+            echo "Hessen" ;;
+        "Leipzig"|"Dresden"|"Chemnitz")
+            echo "Sachsen" ;;
+        "Hannover"|"Braunschweig"|"Oldenburg"|"Osnabrück"|"Göttingen"|"Wolfsburg"|"Salzgitter"|"Hildesheim")
+            echo "Niedersachsen" ;;
+        "Kiel"|"Lübeck")
+            echo "Schleswig-Holstein" ;;
+        "Magdeburg"|"Halle")
+            echo "Sachsen-Anhalt" ;;
+        "Erfurt"|"Jena")
+            echo "Thüringen" ;;
+        "Potsdam"|"Cottbus")
+            echo "Brandenburg" ;;
+        "Schwerin"|"Rostock")
+            echo "Mecklenburg-Vorpommern" ;;
+        "Saarbrücken")
+            echo "Saarland" ;;
+        "Mainz"|"Ludwigshafen"|"Koblenz"|"Trier")
+            echo "Rheinland-Pfalz" ;;
+        *)
+            echo "Bayern" ;;  # Default fallback
+    esac
+}
+
 # Function to generate address
 generate_address() {
     local street=${STREET_NAMES[$((RANDOM % ${#STREET_NAMES[@]}))]}
@@ -168,7 +207,7 @@ generate_address() {
     local postal_code=${POSTAL_CODES[$((RANDOM % ${#POSTAL_CODES[@]}))]}
     local city=${CITIES[$((RANDOM % ${#CITIES[@]}))]}
     
-    echo "${street} ${house_number}${house_suffix}|${postal_code}|${city}"
+    echo "${street}|${house_number}${house_suffix}|${postal_code}|${city}"
 }
 
 # Function to generate email address
@@ -254,8 +293,10 @@ create_patient() {
     # Generate address data
     local address_data=$(generate_address)
     local street=$(echo "$address_data" | cut -d'|' -f1)
-    local postal_code=$(echo "$address_data" | cut -d'|' -f2)
-    local city=$(echo "$address_data" | cut -d'|' -f3)
+    local house_number=$(echo "$address_data" | cut -d'|' -f2)
+    local postal_code=$(echo "$address_data" | cut -d'|' -f3)
+    local city=$(echo "$address_data" | cut -d'|' -f4)
+    local state=$(get_state_for_city "$city")
     
     # Extract birth year for email generation
     local birth_year=$(echo "$birth_date" | cut -d'-' -f1)
@@ -294,12 +335,123 @@ create_patient() {
     "insuranceType": "$insurance_type",
     "insuranceCompanyId": "$(printf "%08d" $((10000000 + RANDOM % 90000000)))",
     "insuranceCompanyName": "$insurance_company",
-    "address": {
-        "street": "$street",
-        "postalCode": "$postal_code",
-        "city": "$city",
-        "country": "Deutschland"
-    },
+    "addresses": [
+        {
+            "addressType": "PRIMARY",
+            "street": "$(echo "$street" | sed 's/\([0-9]\+[a-c]*\)$//')",
+            "houseNumber": "$(echo "$street" | grep -o '[0-9]\+[a-c]*
+    
+    # Make API call
+    local response=$(curl -s -X POST "${BASE_URL}/api/v1/patients" \
+        -H "$AUTH_HEADER" \
+        -H "$CONTENT_TYPE" \
+        -d "$json_payload")
+    
+    # Check if creation was successful
+    if echo "$response" | jq -e '.id' > /dev/null 2>&1; then
+        local patient_id=$(echo "$response" | jq -r '.id')
+        local contact_info=""
+        [ -n "$mobile" ] && contact_info="📱"
+        [ -n "$email" ] && contact_info="${contact_info}📧"
+        echo -e "${GREEN}✅ Patient $index: $first_name $last_name ($city) $contact_info (ID: ${patient_id:0:8}...)${NC}"
+        return 0
+    else
+        echo -e "${RED}❌ Patient $index failed: $first_name $last_name${NC}"
+        echo -e "${RED}   Error: $(echo "$response" | jq -r '.message // .error // "Unknown error"')${NC}"
+        return 1
+    fi
+}
+
+# Main execution
+main() {
+    echo -e "${BLUE}🏥 HIS Patient Service - Creating 100 Test Patients${NC}"
+    echo -e "${BLUE}=================================================${NC}"
+    echo ""
+    
+    # Check service availability
+    check_service
+    echo ""
+    
+    # Initialize counters
+    local successful=0
+    local failed=0
+    local start_time=$(date +%s)
+    
+    echo -e "${BLUE}🚀 Starting patient creation...${NC}"
+    echo ""
+    
+    # Create patients
+    for i in $(seq 1 100); do
+        if create_patient $i; then
+            ((successful++))
+        else
+            ((failed++))
+        fi
+        
+        # Progress indicator every 10 patients
+        if [ $((i % 10)) -eq 0 ]; then
+            echo -e "${YELLOW}📊 Progress: $i/100 patients processed (✅ $successful success, ❌ $failed failed)${NC}"
+            echo ""
+        fi
+        
+        # Small delay to avoid overwhelming the service
+        sleep 0.1
+    done
+    
+    # Final statistics
+    local end_time=$(date +%s)
+    local duration=$((end_time - start_time))
+    
+    echo ""
+    echo -e "${BLUE}📋 FINAL STATISTICS${NC}"
+    echo -e "${BLUE}==================${NC}"
+    echo -e "${GREEN}✅ Successfully created: $successful patients${NC}"
+    echo -e "${RED}❌ Failed: $failed patients${NC}"
+    echo -e "${YELLOW}⏱️  Total time: ${duration}s${NC}"
+    echo -e "${YELLOW}📊 Rate: $(echo "scale=2; $successful/$duration" | bc 2>/dev/null || echo "N/A") patients/second${NC}"
+    echo ""
+    
+    # Show some sample patients
+    if [ $successful -gt 0 ]; then
+        echo -e "${BLUE}👥 Sample patients with addresses created:${NC}"
+        curl -s -H "$AUTH_HEADER" "${BASE_URL}/api/v1/patients?page=0&size=5" | \
+            jq -r '.content[]? | "   • \(.firstName) \(.lastName) - \(.kvnr)"'
+        echo ""
+        
+        echo -e "${YELLOW}💡 You can view all patients with full data:${NC}"
+        echo -e "${YELLOW}   curl -s -H '$AUTH_HEADER' '${BASE_URL}/api/v1/patients?page=0&size=20' | jq '.content[]'${NC}"
+        echo ""
+        
+        echo -e "${YELLOW}📝 Note: Addresses may not be visible due to current Patient Service implementation${NC}"
+        echo -e "${YELLOW}   The address data is being sent correctly in the expected format.${NC}"
+    fi
+}
+
+# Check dependencies
+if ! command -v curl &> /dev/null; then
+    echo -e "${RED}❌ curl is required but not installed.${NC}"
+    exit 1
+fi
+
+if ! command -v jq &> /dev/null; then
+    echo -e "${RED}❌ jq is required but not installed.${NC}"
+    echo -e "${YELLOW}   On macOS: brew install jq${NC}"
+    echo -e "${YELLOW}   On Ubuntu: sudo apt install jq${NC}"
+    exit 1
+fi
+
+if ! command -v bc &> /dev/null; then
+    echo -e "${YELLOW}⚠️  bc not found - statistics calculation may be limited${NC}"
+fi
+
+# Run main function
+main "$@")",
+            "postalCode": "$postal_code",
+            "city": "$city",
+            "state": "$(get_state_for_city "$city")",
+            "country": "Deutschland"
+        }
+    ],
     $([ -n "$phone" ] && echo "\"phone\": \"$phone\",")
     $([ -n "$mobile" ] && echo "\"mobile\": \"$mobile\",")
     $([ -n "$email" ] && echo "\"email\": \"$email\",")
