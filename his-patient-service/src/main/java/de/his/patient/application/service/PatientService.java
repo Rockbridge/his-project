@@ -4,6 +4,7 @@ import de.his.patient.application.dto.*;
 import de.his.patient.domain.model.Address;
 import de.his.patient.domain.model.Patient;
 import de.his.patient.domain.repository.PatientRepository;
+import de.his.patient.domain.repository.AddressRepository;
 import de.his.patient.infrastructure.exception.PatientNotFoundException;
 import de.his.patient.infrastructure.exception.PatientAlreadyExistsException;
 import org.slf4j.Logger;
@@ -23,9 +24,12 @@ public class PatientService {
     private static final Logger logger = LoggerFactory.getLogger(PatientService.class);
 
     private final PatientRepository patientRepository;
+    private final AddressRepository addressRepository;
 
-    public PatientService(PatientRepository patientRepository) {
+    public PatientService(PatientRepository patientRepository,
+                          AddressRepository addressRepository) {
         this.patientRepository = patientRepository;
+        this.addressRepository = addressRepository;
     }
 
     @Transactional
@@ -71,6 +75,10 @@ public class PatientService {
         }
 
         patient = patientRepository.save(patient);
+        if (!patient.getAddresses().isEmpty()) {
+            patient.getAddresses().forEach(address -> address.setPerson(patient));
+            addressRepository.saveAll(patient.getAddresses());
+        }
         
         logger.info("Created patient {} with KVNR {}", patient.getId(), request.getKvnr());
 
