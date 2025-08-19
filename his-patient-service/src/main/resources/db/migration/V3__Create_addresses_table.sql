@@ -1,6 +1,6 @@
 -- src/main/resources/db/migration/V3__Create_addresses_table.sql
 
-CREATE TABLE pvs_patient.addresses (
+CREATE TABLE his_patient.addresses (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     patient_id UUID NOT NULL,
     
@@ -22,15 +22,15 @@ CREATE TABLE pvs_patient.addresses (
     -- Foreign Key
     CONSTRAINT fk_addresses_patient 
         FOREIGN KEY (patient_id) 
-        REFERENCES pvs_patient.patients(id) 
+        REFERENCES his_patient.patients(id)
         ON DELETE CASCADE
 );
 
 -- Indizes
-CREATE INDEX idx_addresses_patient_id ON pvs_patient.addresses(patient_id);
-CREATE INDEX idx_addresses_postal_code ON pvs_patient.addresses(postal_code);
+CREATE INDEX idx_addresses_patient_id ON his_patient.addresses(patient_id);
+CREATE INDEX idx_addresses_postal_code ON his_patient.addresses(postal_code);
 
 -- Constraint: Nur eine primäre Adresse pro Patient
 CREATE UNIQUE INDEX idx_addresses_primary_per_patient 
-    ON pvs_patient.addresses(patient_id) 
+    ON his_patient.addresses(patient_id)
     WHERE is_primary = true;
