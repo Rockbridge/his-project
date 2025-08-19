@@ -1,8 +1,10 @@
 package de.his.patient.application.service;
 
 import de.his.patient.application.dto.*;
+import de.his.patient.domain.model.Address;
 import de.his.patient.domain.model.Patient;
 import de.his.patient.domain.repository.PatientRepository;
+import de.his.patient.domain.repository.AddressRepository;
 import de.his.patient.infrastructure.exception.PatientNotFoundException;
 import de.his.patient.infrastructure.exception.PatientAlreadyExistsException;
 import org.slf4j.Logger;
@@ -13,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
+import java.util.List;
 
 @Service
 @Transactional
@@ -21,9 +24,12 @@ public class PatientService {
     private static final Logger logger = LoggerFactory.getLogger(PatientService.class);
 
     private final PatientRepository patientRepository;
+    private final AddressRepository addressRepository;
 
-    public PatientService(PatientRepository patientRepository) {
+    public PatientService(PatientRepository patientRepository,
+                          AddressRepository addressRepository) {
         this.patientRepository = patientRepository;
+        this.addressRepository = addressRepository;
     }
 
     @Transactional
@@ -54,7 +60,25 @@ public class PatientService {
         patient.setConsentCommunication(request.getConsentCommunication());
         patient.setConsentDataProcessing(request.getConsentDataProcessing());
 
+        if (request.getAddresses() != null) {
+            for (CreateAddressRequest addressRequest : request.getAddresses()) {
+                Address address = new Address();
+                address.setAddressType(addressRequest.getAddressType());
+                address.setStreet(addressRequest.getStreet());
+                address.setHouseNumber(addressRequest.getHouseNumber());
+                address.setPostalCode(addressRequest.getPostalCode());
+                address.setCity(addressRequest.getCity());
+                address.setState(addressRequest.getState());
+                address.setCountry(addressRequest.getCountry());
+                patient.addAddress(address);
+            }
+        }
+
         patient = patientRepository.save(patient);
+        if (!patient.getAddresses().isEmpty()) {
+            patient.getAddresses().forEach(address -> address.setPerson(patient));
+            addressRepository.saveAll(patient.getAddresses());
+        }
         
         logger.info("Created patient {} with KVNR {}", patient.getId(), request.getKvnr());
 
@@ -96,6 +120,18 @@ public class PatientService {
     }
 
     private PatientResponse mapToResponse(Patient patient) {
+        List<AddressResponse> addresses = patient.getAddresses().stream()
+            .map(addr -> new AddressResponse(
+                addr.getId(),
+                addr.getAddressType(),
+                addr.getStreet(),
+                addr.getHouseNumber(),
+                addr.getPostalCode(),
+                addr.getCity(),
+                addr.getState(),
+                addr.getCountry()))
+            .collect(java.util.stream.Collectors.toList());
+
         return new PatientResponse(
             patient.getId(),
             patient.getFirstName(),
@@ -113,6 +149,7 @@ public class PatientService {
             patient.getEmail(),
             patient.getConsentCommunication(),
             patient.getConsentDataProcessing(),
+            addresses,
             patient.getCreatedAt(),
             patient.getUpdatedAt()
         );
