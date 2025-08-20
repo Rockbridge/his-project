@@ -35,5 +35,5 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=15s --retries=3 \
 # KORRIGIERTER PORT!
 EXPOSE 8081
 
-# KORRIGIERTES ENTRYPOINT!
+# KORRIGIERTER ENTRYPOINT!
 ENTRYPOINT ["java", "-jar", "app.jar"]

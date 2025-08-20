@@ -1,16 +1,12 @@
-version: "3.8"
-
 services:
   # PostgreSQL Database - Core Infrastructure
   postgres:
     image: postgres:15-alpine
     container_name: his-postgres-minimal
     environment:
-      # ✅ Konsistent mit application-docker-minimal.yml
       POSTGRES_DB: his_db
       POSTGRES_USER: his_user
       POSTGRES_PASSWORD: dev_password
-      # PostgreSQL Optimierungen
       POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
     volumes:
       - postgres_data_minimal:/var/lib/postgresql/data
@@ -82,41 +78,23 @@ services:
       dockerfile: Dockerfile
     container_name: his-patient-service-minimal
     environment:
-      # Database Configuration
+      # DB
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/his_db
       SPRING_DATASOURCE_USERNAME: his_user
       SPRING_DATASOURCE_PASSWORD: dev_password
-      # JPA Configuration
-      SPRING_JPA_HIBERNATE_DDL_AUTO: none
-      SPRING_JPA_SHOW_SQL: true
-      SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL: true
-      SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA: his_patient
-      # LIQUIBASE AKTIVIEREN - HINZUGEFÜGT
-      SPRING_LIQUIBASE_ENABLED: false
-      SPRING_LIQUIBASE_CHANGE_LOG: classpath:db/changelog/db.changelog-master.xml
-      SPRING_LIQUIBASE_DEFAULT_SCHEMA: his_patient
-      SPRING_LIQUIBASE_CONTEXTS: docker,production
-
-      # Flyway Configuration
+      # Flyway (DDL kommt aus Flyway; JPA-Validierung konfiguriert ihr in application-*.yml)
       SPRING_FLYWAY_SCHEMAS: his_patient
       SPRING_FLYWAY_LOCATIONS: classpath:db/migration
       SPRING_FLYWAY_BASELINE_ON_MIGRATE: true
-
-      # Profile Configuration
       SPRING_PROFILES_ACTIVE: docker-minimal
-      # Logging Configuration
-      LOGGING_LEVEL_DE_HIS_PATIENT: DEBUG
-      LOGGING_LEVEL_ORG_HIBERNATE_SQL: DEBUG
-      LOGGING_LEVEL_ROOT: INFO
-      LOGGING_LEVEL_LIQUIBASE: INFO
-      # Application Configuration
-      SERVER_PORT: 8081
-      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,metrics
-      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
-      # Security Configuration
+      # Security
       SPRING_SECURITY_USER_NAME: admin
       SPRING_SECURITY_USER_PASSWORD: dev-password
       SPRING_SECURITY_USER_ROLES: ADMIN
+      # Server/Actuator
+      SERVER_PORT: 8081
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,metrics
+      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
     ports:
       - "8081:8081"
     networks:
@@ -142,49 +120,35 @@ services:
     volumes:
       - ./logs/patient:/app/logs
 
-  # Encounter Service - Port 8082 ✅ KORREKT EINGERÜCKT
+  # Encounter Service - Port 8082
   encounter-service:
     build:
       context: ./his-encounter-service
       dockerfile: Dockerfile
     container_name: his-encounter-service-minimal
     environment:
-      # Database Configuration - KORRIGIERT
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/his_db
       SPRING_DATASOURCE_USERNAME: his_user
       SPRING_DATASOURCE_PASSWORD: dev_password
-      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
-      # JPA Configuration - KORRIGIERT
+      # JPA
       SPRING_JPA_HIBERNATE_DDL_AUTO: validate
-      SPRING_JPA_SHOW_SQL: true
-      SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.PostgreSQLDialect
       SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA: his_encounter
-      SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.PostgreSQLDialect
-      # Explizit H2 deaktivieren
-      SPRING_H2_CONSOLE_ENABLED: false
-      # Flyway aktivieren
+      # Flyway
       SPRING_FLYWAY_ENABLED: true
       SPRING_FLYWAY_SCHEMAS: his_encounter
       SPRING_FLYWAY_LOCATIONS: classpath:db/migration
       SPRING_FLYWAY_BASELINE_ON_MIGRATE: true
-      # Security Configuration - NEU
+      # Security
       SPRING_SECURITY_USER_NAME: admin
       SPRING_SECURITY_USER_PASSWORD: dev-password
       SPRING_SECURITY_USER_ROLES: ADMIN
-      # Profile Configuration
+      # Profile
       SPRING_PROFILES_ACTIVE: docker-minimal
-      # Feign Client Configuration
+      # Downstream auf Patient-Service
       SERVICES_PATIENT_URL: http://patient-service:8081
       FEIGN_CLIENT_CONFIG_DEFAULT_CONNECT_TIMEOUT: 5000
       FEIGN_CLIENT_CONFIG_DEFAULT_READ_TIMEOUT: 10000
-      # Logging Configuration
-      LOGGING_LEVEL_DE_HIS_ENCOUNTER: DEBUG
-      LOGGING_LEVEL_FEIGN: DEBUG
-      LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_CLOUD_OPENFEIGN: DEBUG
-      LOGGING_LEVEL_ORG_HIBERNATE_SQL: DEBUG
-      LOGGING_LEVEL_ROOT: INFO
-      LOGGING_LEVEL_LIQUIBASE: INFO
-      # Application Configuration
+      # Server/Actuator
       SERVER_PORT: 8082
       MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,metrics
       MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
@@ -235,7 +199,6 @@ services:
       SPRING_LDAP_BASE: dc=example,dc=org
       SPRING_LDAP_USERNAME: cn=admin,dc=example,dc=org
       SPRING_LDAP_PASSWORD: admin
-
     ports:
       - "8083:8083"
     networks:
@@ -273,7 +236,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/his_db
       SPRING_DATASOURCE_USERNAME: his_user
       SPRING_DATASOURCE_PASSWORD: dev_password
-      SPRING_JPA_HIBERNATE_DDL_AUTO: none
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
       SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA: his_authorization
       SPRING_PROFILES_ACTIVE: docker-minimal
       SERVER_PORT: 8084
@@ -287,7 +250,15 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8084/actuator/health"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:8084/actuator/health",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -303,47 +274,38 @@ services:
       dockerfile: Dockerfile
     container_name: his-api-gateway-minimal
     environment:
-      # Patient Service Route
+      # Routes
       SPRING_CLOUD_GATEWAY_ROUTES_0_ID: patient-service
       SPRING_CLOUD_GATEWAY_ROUTES_0_URI: http://patient-service:8081
       SPRING_CLOUD_GATEWAY_ROUTES_0_PREDICATES_0: Path=/api/v1/patients/**
-      # Encounter Service Route
       SPRING_CLOUD_GATEWAY_ROUTES_1_ID: encounter-service
       SPRING_CLOUD_GATEWAY_ROUTES_1_URI: http://encounter-service:8082
       SPRING_CLOUD_GATEWAY_ROUTES_1_PREDICATES_0: Path=/api/v1/encounters/**
-      # Patient Health Route
       SPRING_CLOUD_GATEWAY_ROUTES_2_ID: patient-health
       SPRING_CLOUD_GATEWAY_ROUTES_2_URI: http://patient-service:8081
       SPRING_CLOUD_GATEWAY_ROUTES_2_PREDICATES_0: Path=/services/patient/actuator/**
       SPRING_CLOUD_GATEWAY_ROUTES_2_FILTERS_0: StripPrefix=2
-      # Encounter Health Route
       SPRING_CLOUD_GATEWAY_ROUTES_3_ID: encounter-health
       SPRING_CLOUD_GATEWAY_ROUTES_3_URI: http://encounter-service:8082
       SPRING_CLOUD_GATEWAY_ROUTES_3_PREDICATES_0: Path=/services/encounter/actuator/**
       SPRING_CLOUD_GATEWAY_ROUTES_3_FILTERS_0: StripPrefix=2
-      # Patient Docs Route
       SPRING_CLOUD_GATEWAY_ROUTES_4_ID: patient-docs
       SPRING_CLOUD_GATEWAY_ROUTES_4_URI: http://patient-service:8081
       SPRING_CLOUD_GATEWAY_ROUTES_4_PREDICATES_0: Path=/docs/patient/**
       SPRING_CLOUD_GATEWAY_ROUTES_4_FILTERS_0: StripPrefix=2
-      # Encounter Docs Route
       SPRING_CLOUD_GATEWAY_ROUTES_5_ID: encounter-docs
       SPRING_CLOUD_GATEWAY_ROUTES_5_URI: http://encounter-service:8082
       SPRING_CLOUD_GATEWAY_ROUTES_5_PREDICATES_0: Path=/docs/encounter/**
       SPRING_CLOUD_GATEWAY_ROUTES_5_FILTERS_0: StripPrefix=2
-      # Redis Configuration - KORRIGIERT
+      # Redis
       SPRING_REDIS_HOST: redis
       SPRING_REDIS_PORT: 6379
-      SPRING_REDIS_TIMEOUT: 2000ms
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
-      # Profile Configuration
+      SPRING_REDIS_TIMEOUT: 2000ms
+      # Profile
       SPRING_PROFILES_ACTIVE: docker-minimal
-      # Logging Configuration
-      LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_CLOUD_GATEWAY: DEBUG
-      LOGGING_LEVEL_ROOT: INFO
-      LOGGING_LEVEL_LIQUIBASE: INFO
-      # Application Configuration
+      # Server/Actuator
       SERVER_PORT: 8080
       MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,metrics,gateway,circuitbreakers
       MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always

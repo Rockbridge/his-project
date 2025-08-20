@@ -1,0 +1,368 @@
+      patient-service:
+        condition: service_healthy
+        required: true
+      postgres:
+        condition: service_healthy
+        required: true
+      redis:
+        condition: service_healthy
+        required: true
+    environment:
+      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,metrics,gateway,circuitbreakers
+      SERVER_PORT: "8080"
+      SPRING_CLOUD_GATEWAY_ROUTES_0_ID: patient-service
+      SPRING_CLOUD_GATEWAY_ROUTES_0_PREDICATES_0: Path=/api/v1/patients/**
+      SPRING_CLOUD_GATEWAY_ROUTES_0_URI: http://patient-service:8081
+      SPRING_CLOUD_GATEWAY_ROUTES_1_ID: encounter-service
+      SPRING_CLOUD_GATEWAY_ROUTES_1_PREDICATES_0: Path=/api/v1/encounters/**
+      SPRING_CLOUD_GATEWAY_ROUTES_1_URI: http://encounter-service:8082
+      SPRING_CLOUD_GATEWAY_ROUTES_2_FILTERS_0: StripPrefix=2
+      SPRING_CLOUD_GATEWAY_ROUTES_2_ID: patient-health
+      SPRING_CLOUD_GATEWAY_ROUTES_2_PREDICATES_0: Path=/services/patient/actuator/**
+      SPRING_CLOUD_GATEWAY_ROUTES_2_URI: http://patient-service:8081
+      SPRING_CLOUD_GATEWAY_ROUTES_3_FILTERS_0: StripPrefix=2
+      SPRING_CLOUD_GATEWAY_ROUTES_3_ID: encounter-health
+      SPRING_CLOUD_GATEWAY_ROUTES_3_PREDICATES_0: Path=/services/encounter/actuator/**
+      SPRING_CLOUD_GATEWAY_ROUTES_3_URI: http://encounter-service:8082
+      SPRING_CLOUD_GATEWAY_ROUTES_4_FILTERS_0: StripPrefix=2
+      SPRING_CLOUD_GATEWAY_ROUTES_4_ID: patient-docs
+      SPRING_CLOUD_GATEWAY_ROUTES_4_PREDICATES_0: Path=/docs/patient/**
+      SPRING_CLOUD_GATEWAY_ROUTES_4_URI: http://patient-service:8081
+      SPRING_CLOUD_GATEWAY_ROUTES_5_FILTERS_0: StripPrefix=2
+      SPRING_CLOUD_GATEWAY_ROUTES_5_ID: encounter-docs
+      SPRING_CLOUD_GATEWAY_ROUTES_5_PREDICATES_0: Path=/docs/encounter/**
+      SPRING_CLOUD_GATEWAY_ROUTES_5_URI: http://encounter-service:8082
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: "6379"
+      SPRING_PROFILES_ACTIVE: docker-minimal
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: "6379"
+      SPRING_REDIS_TIMEOUT: 2000ms
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - --no-verbose
+        - --tries=1
+        - --spider
+        - http://localhost:8080/actuator/health
+      timeout: 10s
+      interval: 30s
+      retries: 3
+      start_period: 1m30s
+    networks:
+      his-network-minimal: null
+    ports:
+      - mode: ingress
+        target: 8080
+        published: "8080"
+        protocol: tcp
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: /Users/mhn/Dev/his-project/logs/gateway
+        target: /app/logs
+        bind:
+          create_host_path: true
+  authorization-service:
+    build:
+      context: /Users/mhn/Dev/his-project/his-authorization-service
+      dockerfile: Dockerfile
+    container_name: his-authorization-service-minimal
+    depends_on:
+      postgres:
+        condition: service_healthy
+        required: true
+    environment:
+      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,metrics
+      SERVER_PORT: "8084"
+      SPRING_DATASOURCE_PASSWORD: dev_password
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/his_db
+      SPRING_DATASOURCE_USERNAME: his_user
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+      SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA: his_authorization
+      SPRING_PROFILES_ACTIVE: docker-minimal
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - --no-verbose
+        - --tries=1
+        - --spider
+        - http://localhost:8084/actuator/health
+      timeout: 10s
+      interval: 30s
+      retries: 3
+      start_period: 1m0s
+    networks:
+      his-network-minimal: null
+    ports:
+      - mode: ingress
+        target: 8084
+        published: "8084"
+        protocol: tcp
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: /Users/mhn/Dev/his-project/logs/authorization
+        target: /app/logs
+        bind:
+          create_host_path: true
+  encounter-service:
+    build:
+      context: /Users/mhn/Dev/his-project/his-encounter-service
+      dockerfile: Dockerfile
+    container_name: his-encounter-service-minimal
+    depends_on:
+      patient-service:
+        condition: service_healthy
+        required: true
+      postgres:
+        condition: service_healthy
+        required: true
+    environment:
+      FEIGN_CLIENT_CONFIG_DEFAULT_CONNECT_TIMEOUT: "5000"
+      FEIGN_CLIENT_CONFIG_DEFAULT_READ_TIMEOUT: "10000"
+      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,metrics
+      SERVER_PORT: "8082"
+      SERVICES_PATIENT_URL: http://patient-service:8081
+      SPRING_DATASOURCE_PASSWORD: dev_password
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/his_db
+      SPRING_DATASOURCE_USERNAME: his_user
+      SPRING_FLYWAY_BASELINE_ON_MIGRATE: "true"
+      SPRING_FLYWAY_ENABLED: "true"
+      SPRING_FLYWAY_LOCATIONS: classpath:db/migration
+      SPRING_FLYWAY_SCHEMAS: his_encounter
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+      SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA: his_encounter
+      SPRING_PROFILES_ACTIVE: docker-minimal
+      SPRING_SECURITY_USER_NAME: admin
+      SPRING_SECURITY_USER_PASSWORD: dev-password
+      SPRING_SECURITY_USER_ROLES: ADMIN
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - --no-verbose
+        - --tries=1
+        - --spider
+        - http://localhost:8082/actuator/health
+      timeout: 10s
+      interval: 30s
+      retries: 3
+      start_period: 1m0s
+    networks:
+      his-network-minimal: null
+    ports:
+      - mode: ingress
+        target: 8082
+        published: "8082"
+        protocol: tcp
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: /Users/mhn/Dev/his-project/logs/encounter
+        target: /app/logs
+        bind:
+          create_host_path: true
+  identity-service:
+    build:
+      context: /Users/mhn/Dev/his-project/his-identity-service
+      dockerfile: Dockerfile
+    container_name: his-identity-service-minimal
+    depends_on:
+      ldap:
+        condition: service_healthy
+        required: true
+      postgres:
+        condition: service_healthy
+        required: true
+    environment:
+      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,metrics
+      SERVER_PORT: "8083"
+      SPRING_DATASOURCE_PASSWORD: dev_password
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/his_db
+      SPRING_DATASOURCE_USERNAME: his_user
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+      SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA: his_auth
+      SPRING_LDAP_BASE: dc=example,dc=org
+      SPRING_LDAP_PASSWORD: admin
+      SPRING_LDAP_URLS: ldap://ldap:389/
+      SPRING_LDAP_USERNAME: cn=admin,dc=example,dc=org
+      SPRING_PROFILES_ACTIVE: docker-minimal
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - --no-verbose
+        - --tries=1
+        - --spider
+        - http://localhost:8083/actuator/health
+      timeout: 10s
+      interval: 30s
+      retries: 3
+      start_period: 1m0s
+    networks:
+      his-network-minimal: null
+    ports:
+      - mode: ingress
+        target: 8083
+        published: "8083"
+        protocol: tcp
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: /Users/mhn/Dev/his-project/logs/identity
+        target: /app/logs
+        bind:
+          create_host_path: true
+  ldap:
+    container_name: his-ldap-minimal
+    environment:
+      LDAP_ADMIN_PASSWORD: admin
+      LDAP_DOMAIN: example.org
+      LDAP_ORGANISATION: HIS Demo
+    healthcheck:
+      test:
+        - CMD
+        - ldapsearch
+        - -x
+        - -H
+        - ldap://localhost:389
+        - -b
+        - dc=example,dc=org
+      timeout: 10s
+      interval: 30s
+      retries: 3
+      start_period: 30s
+    image: osixia/openldap:1.5.0
+    networks:
+      his-network-minimal: null
+    ports:
+      - mode: ingress
+        target: 389
+        published: "389"
+        protocol: tcp
+    restart: unless-stopped
+  patient-service:
+    build:
+      context: /Users/mhn/Dev/his-project/his-patient-service
+      dockerfile: Dockerfile
+    container_name: his-patient-service-minimal
+    depends_on:
+      postgres:
+        condition: service_healthy
+        required: true
+    environment:
+      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,metrics
+      SERVER_PORT: "8081"
+      SPRING_DATASOURCE_PASSWORD: dev_password
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/his_db
+      SPRING_DATASOURCE_USERNAME: his_user
+      SPRING_FLYWAY_BASELINE_ON_MIGRATE: "true"
+      SPRING_FLYWAY_LOCATIONS: classpath:db/migration
+      SPRING_FLYWAY_SCHEMAS: his_patient
+      SPRING_PROFILES_ACTIVE: docker-minimal
+      SPRING_SECURITY_USER_NAME: admin
+      SPRING_SECURITY_USER_PASSWORD: dev-password
+      SPRING_SECURITY_USER_ROLES: ADMIN
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - --no-verbose
+        - --tries=1
+        - --spider
+        - http://localhost:8081/actuator/health
+      timeout: 10s
+      interval: 30s
+      retries: 3
+      start_period: 1m0s
+    networks:
+      his-network-minimal: null
+    ports:
+      - mode: ingress
+        target: 8081
+        published: "8081"
+        protocol: tcp
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: /Users/mhn/Dev/his-project/logs/patient
+        target: /app/logs
+        bind:
+          create_host_path: true
+  postgres:
+    container_name: his-postgres-minimal
+    environment:
+      POSTGRES_DB: his_db
+      POSTGRES_INITDB_ARGS: --encoding=UTF-8 --lc-collate=C --lc-ctype=C
+      POSTGRES_PASSWORD: dev_password
+      POSTGRES_USER: his_user
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U his_user -d his_db
+      timeout: 5s
+      interval: 10s
+      retries: 5
+      start_period: 30s
+    image: postgres:15-alpine
+    networks:
+      his-network-minimal: null
+    ports:
+      - mode: ingress
+        target: 5432
+        published: "5432"
+        protocol: tcp
+    restart: unless-stopped
+    volumes:
+      - type: volume
+        source: postgres_data_minimal
+        target: /var/lib/postgresql/data
+        volume: {}
+      - type: bind
+        source: /Users/mhn/Dev/his-project/init-scripts
+        target: /docker-entrypoint-initdb.d
+        read_only: true
+        bind:
+          create_host_path: true
+  redis:
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --maxmemory
+      - 256mb
+      - --maxmemory-policy
+      - allkeys-lru
+    container_name: his-redis-minimal
+    healthcheck:
+      test:
+        - CMD
+        - redis-cli
+        - ping
+      timeout: 3s
+      interval: 10s
+      retries: 3
+      start_period: 10s
+    image: redis:7-alpine
+    networks:
+      his-network-minimal: null
+    ports:
+      - mode: ingress
+        target: 6379
+        published: "6379"
+        protocol: tcp
+    restart: unless-stopped
+    volumes:
+      - type: volume
+        source: redis_data_minimal
+        target: /data
+        volume: {}
+networks:

@@ -4,13 +4,11 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.List; // ← FEHLENDER IMPORT
 
 @Entity
 @Table(name = "patients", schema = "his_patient", indexes = {
         @Index(name = "idx_patient_kvnr", columnList = "kvnr", unique = true),
-        @Index(name = "idx_patient_insurance_number", columnList = "insurance_number"),
+        @Index(name = "idx_patient_insurance_number", columnList = "insurance_number")
 })
 public class Patient extends Person {
 
@@ -24,7 +22,7 @@ public class Patient extends Person {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "insurance_status", length = 50)
-    private InsuranceStatus insuranceStatus;
+    private InsuranceStatus insuranceStatus = InsuranceStatus.ACTIVE;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "insurance_type", length = 50)
@@ -37,30 +35,19 @@ public class Patient extends Person {
     private String insuranceCompanyName;
 
     @Column(name = "consent_communication")
-    private Boolean consentCommunication;
+    private Boolean consentCommunication = false;
 
     @Column(name = "consent_data_processing")
-    private Boolean consentDataProcessing;
+    private Boolean consentDataProcessing = false;
 
-    // ✅ ADRESSEN-BEZIEHUNG (muss VOR den Konstruktoren stehen)
-    @OneToMany(mappedBy = "person", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
-    private List<Address> addresses = new ArrayList<>();
-
-    // Konstruktoren
     public Patient() {
     }
 
-    public Patient(String firstName, String lastName, LocalDate birthDate,
-            Gender gender, String kvnr) {
+    public Patient(String firstName, String lastName, LocalDate birthDate, Gender gender, String kvnr) {
         super(firstName, lastName, birthDate, gender);
         this.kvnr = kvnr;
-        this.insuranceStatus = InsuranceStatus.ACTIVE;
-        this.consentCommunication = false;
-        this.consentDataProcessing = false;
-        this.addresses = new ArrayList<>(); // ← Initialisierung hinzufügen
     }
 
-    // Getters and Setters für Insurance
     public String getKvnr() {
         return kvnr;
     }
@@ -123,25 +110,5 @@ public class Patient extends Person {
 
     public void setConsentDataProcessing(Boolean consentDataProcessing) {
         this.consentDataProcessing = consentDataProcessing;
-    }
-
-    // ✅ ADRESSEN-METHODEN
-    public List<Address> getAddresses() {
-        return addresses;
-    }
-
-    public void setAddresses(List<Address> addresses) {
-        this.addresses = addresses;
-    }
-
-    public void addAddress(Address address) {
-        address.setPerson(this); // Bidirektionale Beziehung setzen
-        this.addresses.add(address);
-    }
-
-    // Business Logic
-    public boolean isInsuranceValid() {
-        return insuranceStatus == InsuranceStatus.ACTIVE &&
-                kvnr != null && !kvnr.isEmpty();
     }
 }

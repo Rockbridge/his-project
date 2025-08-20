@@ -1,0 +1,23 @@
+{
+  "kvnr": "R199590647",
+  "firstName": "Max",
+  "lastName": "Mustermann",
+  "title": "Dr.",
+  "birthDate": "1985-03-15",
+  "gender": "MALE",
+  "email": "max.mustermann@example.com",
+  "phone": "+49 171 1234567",
+  "insuranceType": "STATUTORY",
+  "insuranceNumber": "123456789",
+  "consentDataProcessing": true,
+  "consentCommunication": false,
+  "addresses": [{
+    "addressType": "PRIMARY",
+    "street": "Hauptstraße",
+    "houseNumber": "42",
+    "postalCode": "48149",
+    "city": "Münster",
+    "state": "NRW",
+    "country": "Deutschland"
+  }]
+}

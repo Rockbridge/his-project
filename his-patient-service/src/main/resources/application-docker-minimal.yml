@@ -2,7 +2,6 @@ spring:
   application:
     name: patient-service
 
-  # PostgreSQL Configuration
   datasource:
     driver-class-name: org.postgresql.Driver
     url: jdbc:postgresql://postgres:5432/his_db
@@ -19,35 +18,22 @@ spring:
     schemas: his_patient
     baseline-on-migrate: true
     validate-on-migrate: true
-    clean-on-validation-error: true
-    clean-disabled: false
+    clean-on-validation-error: false # sicherer Standard
+    clean-disabled: true # Clean komplett deaktivieren
 
-  # JPA/Hibernate for PostgreSQL
   jpa:
-    database: postgresql
-    database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
-      ddl-auto: update
-    show-sql: true
+      ddl-auto: validate # Flyway verwaltet das Schema
+    show-sql: false # SQL-Ausgabe über Logger unten
     properties:
       hibernate:
         format_sql: true
         default_schema: his_patient
 
-  # Disable H2 Console
-  h2:
-    console:
-      enabled: false
+  mvc:
+    log-request-details: true # nur wirksam, wenn RequestLoggingFilter aktiv ist
 
-  # Security
-  security:
-    user:
-      name: admin
-      password: dev-password
-      roles: ADMIN
-
-server:
-  port: 8080
+# server.port NICHT setzen – Port kommt aus ENV (SERVER_PORT=8081)
 
 management:
   endpoints:
@@ -60,6 +46,9 @@ management:
 
 logging:
   level:
-    de.his.patient: DEBUG
-    org.hibernate.SQL: DEBUG
     root: INFO
+    de.his.patient: DEBUG
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql: TRACE
+    org.springframework.web.filter.CommonsRequestLoggingFilter: DEBUG

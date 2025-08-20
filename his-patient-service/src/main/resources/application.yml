@@ -11,8 +11,8 @@ spring:
     schemas: his_patient
     baseline-on-migrate: true
     validate-on-migrate: true
-    clean-on-validation-error: true
-    clean-disabled: false
+    clean-on-validation-error: false
+    clean-disabled: true
 
   datasource:
     url: jdbc:postgresql://localhost:5432/his_db
@@ -27,7 +27,7 @@ spring:
         web-allow-others: true
 
   liquibase:
-    enabled: false # Liquibase deaktivieren für lokale H2
+    enabled: false
 
   security:
     user:

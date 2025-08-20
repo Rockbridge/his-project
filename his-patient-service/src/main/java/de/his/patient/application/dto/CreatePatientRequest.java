@@ -7,6 +7,7 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.Valid;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -67,51 +68,127 @@ public class CreatePatientRequest {
     @Schema(description = "List of patient addresses")
     private List<CreateAddressRequest> addresses;
 
-    public CreatePatientRequest() {}
+    public CreatePatientRequest() {
+    }
 
     // Getters and Setters
-    public String getFirstName() { return firstName; }
-    public void setFirstName(String firstName) { this.firstName = firstName; }
+    public String getFirstName() {
+        return firstName;
+    }
 
-    public String getLastName() { return lastName; }
-    public void setLastName(String lastName) { this.lastName = lastName; }
+    public void setFirstName(String firstName) {
+        this.firstName = firstName;
+    }
 
-    public String getTitle() { return title; }
-    public void setTitle(String title) { this.title = title; }
+    public String getLastName() {
+        return lastName;
+    }
 
-    public LocalDate getBirthDate() { return birthDate; }
-    public void setBirthDate(LocalDate birthDate) { this.birthDate = birthDate; }
+    public void setLastName(String lastName) {
+        this.lastName = lastName;
+    }
 
-    public Gender getGender() { return gender; }
-    public void setGender(Gender gender) { this.gender = gender; }
+    public String getTitle() {
+        return title;
+    }
 
-    public String getKvnr() { return kvnr; }
-    public void setKvnr(String kvnr) { this.kvnr = kvnr; }
+    public void setTitle(String title) {
+        this.title = title;
+    }
 
-    public String getInsuranceNumber() { return insuranceNumber; }
-    public void setInsuranceNumber(String insuranceNumber) { this.insuranceNumber = insuranceNumber; }
+    public LocalDate getBirthDate() {
+        return birthDate;
+    }
 
-    public InsuranceType getInsuranceType() { return insuranceType; }
-    public void setInsuranceType(InsuranceType insuranceType) { this.insuranceType = insuranceType; }
+    public void setBirthDate(LocalDate birthDate) {
+        this.birthDate = birthDate;
+    }
 
-    public String getInsuranceCompanyId() { return insuranceCompanyId; }
-    public void setInsuranceCompanyId(String insuranceCompanyId) { this.insuranceCompanyId = insuranceCompanyId; }
+    public Gender getGender() {
+        return gender;
+    }
 
-    public String getInsuranceCompanyName() { return insuranceCompanyName; }
-    public void setInsuranceCompanyName(String insuranceCompanyName) { this.insuranceCompanyName = insuranceCompanyName; }
+    public void setGender(Gender gender) {
+        this.gender = gender;
+    }
 
-    public String getPhone() { return phone; }
-    public void setPhone(String phone) { this.phone = phone; }
+    public String getKvnr() {
+        return kvnr;
+    }
 
-    public String getEmail() { return email; }
-    public void setEmail(String email) { this.email = email; }
+    public void setKvnr(String kvnr) {
+        this.kvnr = kvnr;
+    }
 
-    public Boolean getConsentCommunication() { return consentCommunication; }
-    public void setConsentCommunication(Boolean consentCommunication) { this.consentCommunication = consentCommunication; }
+    public String getInsuranceNumber() {
+        return insuranceNumber;
+    }
 
-    public Boolean getConsentDataProcessing() { return consentDataProcessing; }
-    public void setConsentDataProcessing(Boolean consentDataProcessing) { this.consentDataProcessing = consentDataProcessing; }
+    public void setInsuranceNumber(String insuranceNumber) {
+        this.insuranceNumber = insuranceNumber;
+    }
 
-    public List<CreateAddressRequest> getAddresses() { return addresses; }
-    public void setAddresses(List<CreateAddressRequest> addresses) { this.addresses = addresses; }
+    public InsuranceType getInsuranceType() {
+        return insuranceType;
+    }
+
+    public void setInsuranceType(InsuranceType insuranceType) {
+        this.insuranceType = insuranceType;
+    }
+
+    public String getInsuranceCompanyId() {
+        return insuranceCompanyId;
+    }
+
+    public void setInsuranceCompanyId(String insuranceCompanyId) {
+        this.insuranceCompanyId = insuranceCompanyId;
+    }
+
+    public String getInsuranceCompanyName() {
+        return insuranceCompanyName;
+    }
+
+    public void setInsuranceCompanyName(String insuranceCompanyName) {
+        this.insuranceCompanyName = insuranceCompanyName;
+    }
+
+    public String getPhone() {
+        return phone;
+    }
+
+    public void setPhone(String phone) {
+        this.phone = phone;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public Boolean getConsentCommunication() {
+        return consentCommunication;
+    }
+
+    public void setConsentCommunication(Boolean consentCommunication) {
+        this.consentCommunication = consentCommunication;
+    }
+
+    public Boolean getConsentDataProcessing() {
+        return consentDataProcessing;
+    }
+
+    public void setConsentDataProcessing(Boolean consentDataProcessing) {
+        this.consentDataProcessing = consentDataProcessing;
+    }
+
+    public List<CreateAddressRequest> getAddresses() {
+        return addresses;
+    }
+
+    public void setAddresses(List<CreateAddressRequest> addresses) {
+        this.addresses = addresses;
+    }
 }
