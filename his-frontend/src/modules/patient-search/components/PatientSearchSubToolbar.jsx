@@ -17,7 +17,11 @@ export default function PatientSearchSubToolbar({
           onChange={(e) => onQueryChange(e.target.value)}
           aria-label="Patientensuche"
         />
-        <button className="btn" onClick={onReset} disabled={!query}>
+        <button
+          className="btn btn-secondary"
+          onClick={onReset}
+          disabled={!query}
+        >
           Zurücksetzen
         </button>
 

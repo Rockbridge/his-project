@@ -125,12 +125,18 @@ export default function App() {
           <button className="btn btn-primary">Neu</button>
         </div>
         <div className="toolbar-right">
-          <button className="btn" onClick={() => setLeftOpen((v) => !v)}>
+          <button
+            className="btn btn-secondary"
+            onClick={() => setLeftOpen((v) => !v)}
+          >
             {leftOpen
               ? "Linke Sidebar ausblenden"
               : "Linke Sidebar einblenden"}
           </button>
-          <button className="btn" onClick={() => setRightOpen((v) => !v)}>
+          <button
+            className="btn btn-secondary"
+            onClick={() => setRightOpen((v) => !v)}
+          >
             {rightOpen
               ? "Rechte Sidebar ausblenden"
               : "Rechte Sidebar einblenden"}
