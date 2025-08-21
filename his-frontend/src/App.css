@@ -171,7 +171,7 @@ body {
   height: calc(100vh - (var(--header-h) + var(--tabs-h) + var(--footer-h)));
   display: grid;
   grid-template-rows: 1fr; /* eine Zeile, volle Höhe */
-  gap: 16px; /* Abstand zwischen Spalten */
+  gap: 8px; /* Abstand zwischen Spalten */
   padding: var(--content-pad-y) var(--content-pad-x);
 }
 
@@ -195,7 +195,7 @@ body {
 .app-sidebar {
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: 4px;
   box-shadow: var(--shadow);
   min-height: 0; /* wichtig für Grid-Overflow */
   display: flex;
@@ -212,7 +212,7 @@ body {
 .app-center {
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: 4px;
   box-shadow: var(--shadow);
   min-height: 0; /* wichtig für Grid-Overflow */
   display: flex;
@@ -225,7 +225,7 @@ body {
   min-height: 0;
   overflow: auto;
   -webkit-overflow-scrolling: touch;
-  padding: 16px;
+  padding: 12px;
 }
 
 /* WICHTIG: center-scroll ist ein Flex-Container in Spaltenrichtung */
@@ -234,7 +234,7 @@ body {
   min-height: 0;
   overflow: auto; /* Standard */
   -webkit-overflow-scrolling: touch;
-  padding: 16px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
 }
@@ -484,6 +484,7 @@ body {
   padding: 8px 10px;
   margin: 8px 10px; /* ober-/unterhalb etwas Luft */
   background: transparent; /* keine eigene Fläche nötig */
+  border-radius: 4px;
 }
 .subtoolbar-left {
   display: flex;
@@ -593,10 +594,10 @@ body {
 /* Patientendetails Kopf */
 .patient-header {
   background: #f5f7fa;
-  padding: 1rem;
-  border-radius: 0.75rem;
+  padding: 0.75rem;
+  border-radius: 4px;
   box-shadow: inset 0 -1px 0 #ddd;
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
 }
 .patient-firstname {
   font-size: 1.2rem;
@@ -623,10 +624,10 @@ body {
 /* Sektionen & Key/Value-Layout */
 /* Sektionen */
 .detail-section {
-  margin-bottom: 1.25rem;
-  padding: 0.75rem 1rem;
+  margin-bottom: 0.5rem;
+  padding: 0.5rem 0.5rem;
   background: #fff;
-  border-radius: 0.75rem;
+  border-radius: 0.5rem;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 

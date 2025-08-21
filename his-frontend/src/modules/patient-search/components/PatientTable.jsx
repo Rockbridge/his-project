@@ -4,14 +4,17 @@ import PatientRow from "./PatientRow";
 export default function PatientTable({ rows, onSelect, selectedId }) {
   return (
     <div className="table-wrap">
-      <table className="table" role="table" aria-label="Suchergebnisse Patienten">
+      <table
+        className="table"
+        role="table"
+        aria-label="Suchergebnisse Patienten"
+      >
         <thead>
           <tr>
             <th>Pat.-ID</th>
             <th>KVNR</th>
             <th>Patientenname</th>
             <th>Geburtsdatum</th>
-            <th>Geschlecht</th>
             <th>Versicherung</th>
             <th>Status</th>
           </tr>
