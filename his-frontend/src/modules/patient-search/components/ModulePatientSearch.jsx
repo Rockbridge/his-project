@@ -6,12 +6,16 @@ import PatientTable from "./PatientTable";
 function Pagination({ page, pageCount, onChange }) {
   return (
     <div className="pagination">
-      <button className="btn" disabled={page <= 0} onClick={() => onChange(page - 1)}>
+      <button
+        className="btn btn-secondary"
+        disabled={page <= 0}
+        onClick={() => onChange(page - 1)}
+      >
         ‹ Zurück
       </button>
       <span className="muted">Seite {page + 1} / {Math.max(pageCount, 1)}</span>
       <button
-        className="btn"
+        className="btn btn-secondary"
         disabled={page + 1 >= pageCount}
         onClick={() => onChange(page + 1)}
       >
