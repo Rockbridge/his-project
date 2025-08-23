@@ -20,7 +20,7 @@
     <properties>
         <java.version>21</java.version>
         <spring-cloud.version>2023.0.1</spring-cloud.version>
-        <flyway.version>10.17.0</flyway.version>
+        <flyway.version>10.17.2</flyway.version>
         <testcontainers.version>1.19.3</testcontainers.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
@@ -153,11 +153,24 @@
 
     <build>
         <plugins>
+            <!-- Spring Boot Plugin: layered JAR + build-info -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <layers enabled="true"/>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                            <goal>build-info</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
 
+            <!-- Compiler: Java 21 -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -167,11 +180,18 @@
                 </configuration>
             </plugin>
 
-            <!-- ✅ FLYWAY MAVEN PLUGIN - AKTUALISIERTE VERSION -->
+            <!-- Flyway Maven Plugin -->
             <plugin>
                 <groupId>org.flywaydb</groupId>
                 <artifactId>flyway-maven-plugin</artifactId>
                 <version>${flyway.version}</version>
+                <dependencies>
+                    <dependency>
+                        <groupId>org.flywaydb</groupId>
+                        <artifactId>flyway-database-postgresql</artifactId>
+                        <version>${flyway.version}</version>
+                    </dependency>
+                </dependencies>
                 <configuration>
                     <url>jdbc:postgresql://localhost:5432/his_db</url>
                     <user>his_user</user>
