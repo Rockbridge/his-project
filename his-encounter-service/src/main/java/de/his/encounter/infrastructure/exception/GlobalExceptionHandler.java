@@ -240,6 +240,22 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
     }
 
+    @ExceptionHandler(InvalidPaginationParameterException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidPagination(InvalidPaginationParameterException ex) {
+        logger.debug("Invalid pagination parameter: {}", ex.getMessage());
+
+        Map<String, String> details = new HashMap<>();
+        details.put(ex.getParameter(), String.valueOf(ex.getValue()));
+
+        ErrorResponse error = new ErrorResponse(
+                "INVALID_PAGINATION_PARAMETER",
+                ex.getMessage(),
+                LocalDateTime.now(),
+                details);
+
+        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+    }
+
     // =========================================================================
     // FEIGN CLIENT EXCEPTIONS - ERWEITERT
     // =========================================================================
