@@ -5,23 +5,43 @@ spring:
   application:
     name: encounter-service
 
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    schemas: his_encounter
+    baseline-on-migrate: true
+    validate-on-migrate: true
+    clean-on-validation-error: false
+    clean-disabled: true
+
   datasource:
-    url: jdbc:postgresql://postgres:5432/his_db
+    url: jdbc:postgresql://localhost:5432/his_db
     username: his_user
     password: dev_password
-    driver-class-name: org.postgresql.Driver
 
   jpa:
     hibernate:
-      ddl-auto: update
-    show-sql: true
+      ddl-auto: validate
+    show-sql: false
     properties:
       hibernate:
         default_schema: his_encounter
-        format_sql: true
 
-  flyway:
-    enabled: true
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+      settings:
+        web-allow-others: true
+
+  liquibase:
+    enabled: false
+
+  security:
+    user:
+      name: admin
+      password: dev-password
+      roles: ADMIN
 
 management:
   endpoints:
@@ -35,7 +55,7 @@ management:
 logging:
   level:
     de.his.encounter: DEBUG
-    org.hibernate.SQL: DEBUG
+    org.springframework.security: DEBUG
 
 feign:
   client:
