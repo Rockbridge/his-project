@@ -4,6 +4,7 @@ import de.his.encounter.application.dto.CreateEncounterRequest;
 import de.his.encounter.application.dto.EncounterResponse;
 import de.his.encounter.application.dto.EncounterSummary;
 import de.his.encounter.application.service.EncounterService;
+import de.his.encounter.infrastructure.exception.InvalidPaginationParameterException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -64,6 +65,13 @@ public class EncounterController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) LocalDateTime fromDate,
             @RequestParam(required = false) LocalDateTime toDate) {
+        if (page < 0) {
+            throw new InvalidPaginationParameterException("page", page);
+        }
+
+        if (size <= 0) {
+            throw new InvalidPaginationParameterException("size", size);
+        }
 
         Pageable pageable = PageRequest.of(page, size);
 

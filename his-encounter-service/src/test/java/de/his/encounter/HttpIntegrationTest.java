@@ -163,4 +163,39 @@ class HttpIntegrationTest {
 
         System.out.println("✅ Validation error handling works correctly");
     }
+
+    @Test
+    void shouldReturn400ForInvalidPaginationParameters() {
+        // When
+        ResponseEntity<Map> response = restTemplate.getForEntity(
+                getBaseUrl() + "/patient/" + UUID.randomUUID() + "?page=-1&size=0",
+                Map.class);
+
+        // Then
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().get("code")).isEqualTo("INVALID_PAGINATION_PARAMETER");
+
+        System.out.println("✅ Pagination parameter validation works correctly");
+    }
+
+    @Test
+    void shouldReturn400ForInvalidDateRange() {
+        // Given
+        LocalDateTime from = LocalDateTime.now();
+        LocalDateTime to = from.minusDays(1); // invalid range
+
+        String url = getBaseUrl() + "/patient/" + UUID.randomUUID()
+                + "?fromDate=" + from + "&toDate=" + to;
+
+        // When
+        ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
+
+        // Then
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().get("code")).isEqualTo("INVALID_DATE_RANGE");
+
+        System.out.println("✅ Date range validation works correctly");
+    }
 }
