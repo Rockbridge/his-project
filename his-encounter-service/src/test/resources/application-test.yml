@@ -1,28 +1,10 @@
 spring:
   datasource:
-    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
-    driver-class-name: org.h2.Driver
-    username: sa
-    password: 
-  
+    url: jdbc:tc:postgresql:15-alpine:///his_db
+    driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
   jpa:
     hibernate:
-      ddl-auto: create-drop
-    show-sql: true
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.H2Dialect
-  
-  h2:
-    console:
-      enabled: true
-
-  flyway:
-    enabled: false  # Für Tests deaktiviert, da create-drop verwendet wird
-
-logging:
-  level:
-    de.his.encounter: DEBUG
-    org.springframework.web: DEBUG
-    org.hibernate.SQL: DEBUG
-    org.springframework.test: DEBUG
+      ddl-auto: validate

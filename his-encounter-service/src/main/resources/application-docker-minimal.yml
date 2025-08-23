@@ -2,63 +2,37 @@ spring:
   application:
     name: encounter-service
 
-  # PostgreSQL Connection - KORRIGIERT für einheitliche DB
   datasource:
+    driver-class-name: org.postgresql.Driver
     url: jdbc:postgresql://postgres:5432/his_db
     username: his_user
     password: dev_password
-    driver-class-name: org.postgresql.Driver
-    # Connection Pool Optimierung
     hikari:
-      maximum-pool-size: 10
-      minimum-idle: 2
       connection-timeout: 20000
-      idle-timeout: 300000
-      max-lifetime: 1200000
-      leak-detection-threshold: 60000
+      maximum-pool-size: 20
+      minimum-idle: 5
 
-  # JPA/Hibernate Configuration
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    schemas: his_encounter
+    baseline-on-migrate: true
+    validate-on-migrate: true
+    clean-on-validation-error: false
+    clean-disabled: true
+
   jpa:
-    # ✅ KRITISCHER FIX: PostgreSQL statt H2 Dialect
-    database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
-      # ✅ FIX: update statt create-drop (behält Daten bei Restart)
-      ddl-auto: update
-      # ✅ FIX: Naming Strategy für PostgreSQL
-      naming:
-        physical-strategy: org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy
-        implicit-strategy: org.springframework.boot.orm.jpa.hibernate.SpringImplicitNamingStrategy
-    # SQL Logging für Debugging (kann später deaktiviert werden)
-    show-sql: true
+      ddl-auto: validate
+    show-sql: false
     properties:
       hibernate:
-        # ✅ FIX: Schema explizit definiert - KORRIGIERT auf his_encounter
-        default_schema: his_encounter
-        # SQL Formatierung für bessere Lesbarkeit
         format_sql: true
-        # PostgreSQL-spezifische Optimierungen
-        jdbc:
-          lob:
-            non_contextual_creation: true
-          batch_size: 20
-        # Performance Optimierung
-        cache:
-          use_second_level_cache: false
-          use_query_cache: false
+        default_schema: his_encounter
 
-  # ✅ KRITISCHER FIX: Security Configuration hinzugefügt
-  security:
-    user:
-      name: admin
-      password: dev-password
-      roles: ADMIN
+  mvc:
+    log-request-details: true
 
-  # Disable H2 Console explizit
-  h2:
-    console:
-      enabled: false
-
-# Feign Client Configuration
 services:
   patient:
     url: http://patient-service:8081
@@ -69,45 +43,21 @@ feign:
       default:
         connect-timeout: 5000
         read-timeout: 10000
-        logger-level: full
 
-# Logging Configuration
-logging:
-  level:
-    # Hibernate SQL Logging (für Debugging)
-    org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
-    # HikariCP Connection Pool Logging
-    com.zaxxer.hikari.HikariConfig: DEBUG
-    com.zaxxer.hikari: INFO
-    # Feign Client Logging
-    org.springframework.cloud.openfeign: DEBUG
-    feign: DEBUG
-    # Application Specific Logging
-    de.his.encounter: DEBUG
-    # Root Logger (kann auf INFO gestellt werden in Production)
-    root: INFO
-
-# Management Endpoints (Actuator)
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,env,configprops,loggers,mappings
+        include: health,info,metrics
   endpoint:
     health:
       show-details: always
-      show-components: always
-    info:
-      env:
-        enabled: true
 
-# Server Configuration - KORRIGIERT auf Port 8082
-server:
-  port: 8082
-  servlet:
-    context-path: /
-  tomcat:
-    threads:
-      max: 200
-      min-spare: 10
+logging:
+  level:
+    root: INFO
+    de.his.encounter: DEBUG
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql: TRACE
+    org.springframework.web.filter.CommonsRequestLoggingFilter: DEBUG
