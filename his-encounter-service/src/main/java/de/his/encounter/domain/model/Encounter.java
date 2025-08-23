@@ -11,11 +11,15 @@ import java.util.List;
 import java.util.UUID;
 
 @Entity
-@Table(name = "encounters", indexes = {
-        @Index(name = "idx_patient_date", columnList = "patient_id, encounter_date"),
-        @Index(name = "idx_encounter_date", columnList = "encounter_date"),
-        @Index(name = "idx_status", columnList = "status")
-})
+@Table(
+        name = "encounters",
+        schema = "his_encounter",
+        indexes = {
+                @Index(name = "idx_patient_date", columnList = "patient_id, encounter_date"),
+                @Index(name = "idx_encounter_date", columnList = "encounter_date"),
+                @Index(name = "idx_status", columnList = "status")
+        }
+)
 public class Encounter {
 
     @Id
