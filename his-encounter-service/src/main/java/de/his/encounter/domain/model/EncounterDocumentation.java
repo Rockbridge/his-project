@@ -10,10 +10,14 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "encounter_documentation", indexes = {
-        @Index(name = "idx_encounter_soap", columnList = "encounter_id, soap_section"),
-        @Index(name = "idx_author_date", columnList = "author_id, created_at")
-})
+@Table(
+        name = "encounter_documentation",
+        schema = "his_encounter",
+        indexes = {
+                @Index(name = "idx_encounter_soap", columnList = "encounter_id, soap_section"),
+                @Index(name = "idx_author_date", columnList = "author_id, created_at")
+        }
+)
 public class EncounterDocumentation {
 
     @Id
